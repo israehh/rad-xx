@@ -1,0 +1,6 @@
+{
+  "name": "RAD X - Underground Audio Intelligence",
+  "description": "Estación de trabajo e inteligencia acústica underground, buscador de géneros extremos, explorador autónomo, gestor de descargas con persistencia y biblioteca sónica.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
