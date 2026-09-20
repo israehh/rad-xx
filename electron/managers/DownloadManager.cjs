@@ -110,6 +110,10 @@ class DownloadManager extends EventEmitter {
     return { success: true, job: newJob };
   }
 
+  startDownload(track, format = 'MP3') {
+    return this.addJob(track, format);
+  }
+
   processQueue() {
     const settings = this.settings.getSettings();
     const maxConcurrent = settings.maxConcurrentDownloads || 3;

@@ -7,7 +7,15 @@ const { ipcMain, shell } = require('electron');
 const path = require('path');
 
 function registerIpcHandlers(managers, mainWindow) {
-  const { queueManager, downloadManager, libraryManager, settingsManager, hunterEngine, scoutEngine } = managers;
+  const { queueManager, downloadManager, libraryManager, settingsManager, hunterEngine, scoutEngine, scoutScheduler } = managers;
+
+  if (scoutScheduler) {
+    scoutScheduler.on('log', (logData) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('scout:onLog', logData);
+      }
+    });
+  }
 
   // --- HUNTER IPC ---
   const handleHunterSearch = async (event, params) => {
@@ -156,6 +164,61 @@ function registerIpcHandlers(managers, mainWindow) {
 
   ipcMain.handle('scout:updateStatus', async (event, { id, status }) => {
     return scoutEngine.updateItemStatus(id, status);
+  });
+
+  // --- SCOUT SCHEDULER IPC ---
+  ipcMain.handle('scout:scheduler-status', async () => {
+    if (scoutScheduler) {
+      return scoutScheduler.getStatus();
+    }
+    return { active: false, error: 'Scheduler not initialized' };
+  });
+
+  ipcMain.handle('scout:get-scheduler-status', async () => {
+    if (scoutScheduler) {
+      return scoutScheduler.getStatus();
+    }
+    return { active: false, error: 'Scheduler not initialized' };
+  });
+
+  ipcMain.handle('scout:scheduler-trigger', async () => {
+    if (scoutScheduler) {
+      await scoutScheduler.executeCycle();
+      return { success: true, status: scoutScheduler.getStatus() };
+    }
+    return { success: false, reason: 'Scheduler not initialized' };
+  });
+
+  ipcMain.handle('scout:trigger-scheduler', async () => {
+    if (scoutScheduler) {
+      await scoutScheduler.executeCycle();
+      return { success: true, status: scoutScheduler.getStatus() };
+    }
+    return { success: false, reason: 'Scheduler not initialized' };
+  });
+
+  ipcMain.handle('scout:scheduler-toggle', async (event, { enabled }) => {
+    if (scoutScheduler) {
+      if (enabled) {
+        scoutScheduler.start();
+      } else {
+        scoutScheduler.stop();
+      }
+      return { success: true, status: scoutScheduler.getStatus() };
+    }
+    return { success: false };
+  });
+
+  ipcMain.handle('scout:toggle-scheduler', async (event, { enabled }) => {
+    if (scoutScheduler) {
+      if (enabled) {
+        scoutScheduler.start();
+      } else {
+        scoutScheduler.stop();
+      }
+      return { success: true, status: scoutScheduler.getStatus() };
+    }
+    return { success: false };
   });
 
   // --- SETTINGS IPC ---

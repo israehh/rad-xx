@@ -18,7 +18,22 @@ class SettingsManager {
       scoutIntervalHours: 24,
       crossfadeDurationSec: 4,
       highThinkingEnabled: true,
-      themeMode: 'cyberpunk-dark'
+      themeMode: 'cyberpunk-dark',
+      autoScout: true,
+      scoutIntervalMinutes: 30,
+      autoDownload: true,
+      avoidDuplicates: true,
+      maxDownloadsPerCycle: 20,
+      minTrackDuration: 120,
+      maxTrackDuration: 1200,
+      enabledGenres: [
+        'Hard Techno',
+        'Industrial Techno',
+        'Dark Techno',
+        'Peak Time Techno',
+        'EBM',
+        'Synthwave'
+      ]
     };
   }
 

@@ -40,6 +40,10 @@ class QueueManager {
     return { success: true, item: newItem };
   }
 
+  addTrack(track, format = 'MP3') {
+    return this.add(track, format);
+  }
+
   remove(id) {
     const prevLen = this.items.length;
     this.items = this.items.filter(item => item.id !== id && item.trackId !== id);

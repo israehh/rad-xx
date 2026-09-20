@@ -32,6 +32,10 @@ declare global {
       getSettings: () => Promise<SettingsConfig>;
       updateSettings: (updates: Partial<SettingsConfig>) => Promise<SettingsConfig>;
       openFolder: (folderPath: string) => Promise<{ success: boolean }>;
+      getScoutSchedulerStatus?: () => Promise<any>;
+      triggerScoutScheduler?: () => Promise<any>;
+      toggleScoutScheduler?: (enabled: boolean) => Promise<any>;
+      onScoutLog?: (callback: (logLine: string) => void) => () => void;
     };
   }
 }
@@ -344,7 +348,15 @@ export const electronBridge = {
           scoutIntervalHours: 24,
           crossfadeDurationSec: 4,
           highThinkingEnabled: true,
-          themeMode: 'cyberpunk-dark'
+          themeMode: 'cyberpunk-dark',
+          autoScout: true,
+          scoutIntervalMinutes: 30,
+          autoDownload: true,
+          avoidDuplicates: true,
+          maxDownloadsPerCycle: 20,
+          minTrackDuration: 120,
+          maxTrackDuration: 1200,
+          enabledGenres: ['Hard Techno', 'Industrial Techno', 'Dark Techno', 'Peak Time Techno', 'EBM', 'Synthwave']
         };
   },
 
@@ -358,6 +370,63 @@ export const electronBridge = {
       body: JSON.stringify(updates)
     });
     return res.json();
+  },
+
+  // Autonomous ScoutScheduler 24/7
+  async getScoutSchedulerStatus() {
+    const api = getElectronAPI();
+    if (api && typeof api.getScoutSchedulerStatus === 'function') {
+      try {
+        return await api.getScoutSchedulerStatus();
+      } catch (e) {
+        console.warn('[SCOUT] Electron getScoutSchedulerStatus failed, using REST:', e);
+      }
+    }
+    const res = await fetch('/api/scout/scheduler/status');
+    return res.ok ? res.json() : null;
+  },
+
+  async triggerScoutScheduler() {
+    const api = getElectronAPI();
+    if (api && typeof api.triggerScoutScheduler === 'function') {
+      try {
+        return await api.triggerScoutScheduler();
+      } catch (e) {
+        console.warn('[SCOUT] Electron triggerScoutScheduler failed, using REST:', e);
+      }
+    }
+    const res = await fetch('/api/scout/scheduler/trigger', { method: 'POST' });
+    return res.json();
+  },
+
+  async toggleScoutScheduler(enabled: boolean) {
+    const api = getElectronAPI();
+    if (api && typeof api.toggleScoutScheduler === 'function') {
+      try {
+        return await api.toggleScoutScheduler(enabled);
+      } catch (e) {
+        console.warn('[SCOUT] Electron toggleScoutScheduler failed, using REST:', e);
+      }
+    }
+    const res = await fetch('/api/scout/scheduler/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    return res.json();
+  },
+
+  async getScoutSchedulerLogs() {
+    const res = await fetch('/api/scout/scheduler/logs');
+    return res.ok ? res.json() : { logs: [] };
+  },
+
+  onScoutLog(callback: (logLine: string) => void): () => void {
+    const api = getElectronAPI();
+    if (api && typeof api.onScoutLog === 'function') {
+      return api.onScoutLog(callback);
+    }
+    return () => {};
   },
 
   // Deep Neural Scout with Gemini 3.1 Pro + Thinking Mode High

@@ -12,6 +12,7 @@ const { DownloadManager } = require('./managers/DownloadManager.cjs');
 const { LibraryManager } = require('./managers/LibraryManager.cjs');
 const { HunterEngine } = require('./services/HunterEngine.cjs');
 const { ScoutEngine } = require('./services/ScoutEngine.cjs');
+const { ScoutScheduler } = require('./services/ScoutScheduler.cjs');
 const { registerIpcHandlers } = require('./ipc/ipcHandlers.cjs');
 
 let mainWindow = null;
@@ -58,6 +59,7 @@ function createWindow() {
   const libraryManager = new LibraryManager(storageManager, settingsManager);
   const hunterEngine = new HunterEngine(downloadManager, queueManager, libraryManager);
   const scoutEngine = new ScoutEngine(storageManager, libraryManager, downloadManager);
+  const scoutScheduler = new ScoutScheduler(scoutEngine, queueManager, downloadManager, libraryManager, settingsManager);
 
   // Register IPC Handlers
   registerIpcHandlers(
@@ -67,10 +69,14 @@ function createWindow() {
       libraryManager,
       settingsManager,
       hunterEngine,
-      scoutEngine
+      scoutEngine,
+      scoutScheduler
     },
     mainWindow
   );
+
+  // Start Autonomous 24/7 Discovery Engine
+  scoutScheduler.start();
 
   const isDev = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL);
   if (isDev) {

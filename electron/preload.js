@@ -87,6 +87,14 @@ const electronAPI = {
   getScoutResults: () => ipcRenderer.invoke('scout:get'),
   scanScoutRadar: () => ipcRenderer.invoke('scout:scan'),
   updateScoutStatus: (id, status) => ipcRenderer.invoke('scout:updateStatus', { id, status }),
+  getScoutSchedulerStatus: () => ipcRenderer.invoke('scout:scheduler-status'),
+  triggerScoutScheduler: () => ipcRenderer.invoke('scout:scheduler-trigger'),
+  toggleScoutScheduler: (enabled) => ipcRenderer.invoke('scout:scheduler-toggle', { enabled }),
+  onScoutLog: (callback) => {
+    const handler = (_event, value) => callback(value);
+    ipcRenderer.on('scout:onLog', handler);
+    return () => ipcRenderer.removeListener('scout:onLog', handler);
+  },
 
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),

@@ -169,15 +169,198 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div>
-            <label className="text-zinc-400 block mb-1">Intervalo del Explorador (horas)</label>
+            <label className="text-zinc-400 block mb-1">Calidad de Bitrate</label>
+            <select
+              value={form.audioBitrate || '320kbps'}
+              onChange={e => setForm({ ...form, audioBitrate: e.target.value as any })}
+              className="w-full bg-[#080a0f] border border-[#232b3d] rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-cyan-500"
+            >
+              <option value="320kbps">320 kbps (Máxima fidelidad)</option>
+              <option value="256kbps">256 kbps (Equilibrado)</option>
+              <option value="192kbps">192 kbps (Ahorro de espacio)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* ScoutScheduler 24/7 Autonomous Discovery Engine */}
+      <div className="bg-[#0c0f17] border border-cyan-900/30 rounded-xl p-5 space-y-4 shadow-lg shadow-cyan-950/20">
+        <div className="flex items-center justify-between pb-2 border-b border-[#181f2d]">
+          <h3 className="text-sm font-bold text-zinc-200 flex items-center space-x-2">
+            <Cpu className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <span className="font-['Chakra_Petch'] tracking-wide">MOTOR AUTÓNOMO SCOUT SCHEDULER (24/7)</span>
+          </h3>
+          <span className={`px-2 py-0.5 text-[10px] rounded font-mono border ${form.autoScout ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+            {form.autoScout ? 'AUTÓNOMO ACTIVO' : 'PAUSADO'}
+          </span>
+        </div>
+
+        <p className="text-xs text-zinc-400">
+          Descubrimiento y captura perpetua sin intervención de usuario. Ejecuta barridos cada 30 min por defecto, filtra duplicados contra la biblioteca, añade a la cola y descarga en disco.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          {/* AutoScout Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-[#080a0f] border border-[#232b3d]">
+            <div>
+              <div className="font-bold text-zinc-200">Búsqueda 24/7 Activa (autoScout)</div>
+              <div className="text-[10px] text-zinc-500">Ejecución continua en segundo plano</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, autoScout: !form.autoScout })}
+              className={`px-3 py-1 text-xs rounded font-bold transition-all cursor-pointer ${
+                form.autoScout
+                  ? 'bg-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              }`}
+            >
+              {form.autoScout ? 'ACTIVO' : 'DESACTIVADO'}
+            </button>
+          </div>
+
+          {/* AutoDownload Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-[#080a0f] border border-[#232b3d]">
+            <div>
+              <div className="font-bold text-zinc-200">Descarga Automática (autoDownload)</div>
+              <div className="text-[10px] text-zinc-500">Inicia descarga inmediatamente</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, autoDownload: !form.autoDownload })}
+              className={`px-3 py-1 text-xs rounded font-bold transition-all cursor-pointer ${
+                form.autoDownload
+                  ? 'bg-cyan-500 text-black shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              }`}
+            >
+              {form.autoDownload ? 'ACTIVO' : 'DESACTIVADO'}
+            </button>
+          </div>
+
+          {/* AvoidDuplicates Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-[#080a0f] border border-[#232b3d]">
+            <div>
+              <div className="font-bold text-zinc-200">Evitar Duplicados (avoidDuplicates)</div>
+              <div className="text-[10px] text-zinc-500">Compara título, artista, duración y archivo</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, avoidDuplicates: !form.avoidDuplicates })}
+              className={`px-3 py-1 text-xs rounded font-bold transition-all cursor-pointer ${
+                form.avoidDuplicates
+                  ? 'bg-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              }`}
+            >
+              {form.avoidDuplicates ? 'ACTIVO' : 'DESACTIVADO'}
+            </button>
+          </div>
+
+          {/* Interval in minutes */}
+          <div>
+            <label className="text-zinc-400 block mb-1">Intervalo de ciclo (scoutIntervalMinutes)</label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="number"
+                min={5}
+                max={360}
+                value={form.scoutIntervalMinutes || 30}
+                onChange={e => setForm({ ...form, scoutIntervalMinutes: Math.max(5, parseInt(e.target.value, 10) || 30) })}
+                className="w-full bg-[#080a0f] border border-[#232b3d] rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-cyan-500"
+              />
+              <span className="text-xs text-zinc-400">minutos</span>
+            </div>
+          </div>
+
+          {/* Max downloads per cycle */}
+          <div>
+            <label className="text-zinc-400 block mb-1">Máx. descargas por ciclo (maxDownloadsPerCycle)</label>
             <input
               type="number"
-              min={6}
-              max={48}
-              value={form.scoutIntervalHours}
-              onChange={e => setForm({ ...form, scoutIntervalHours: parseInt(e.target.value, 10) })}
+              min={1}
+              max={100}
+              value={form.maxDownloadsPerCycle || 20}
+              onChange={e => setForm({ ...form, maxDownloadsPerCycle: Math.max(1, parseInt(e.target.value, 10) || 20) })}
               className="w-full bg-[#080a0f] border border-[#232b3d] rounded-lg px-3 py-2 text-zinc-200 focus:outline-none focus:border-cyan-500"
             />
+          </div>
+
+          {/* Track duration filter */}
+          <div>
+            <label className="text-zinc-400 block mb-1">Filtro duración pista (segundos)</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Mín (minTrackDuration):</span>
+                <input
+                  type="number"
+                  min={30}
+                  max={600}
+                  value={form.minTrackDuration || 120}
+                  onChange={e => setForm({ ...form, minTrackDuration: parseInt(e.target.value, 10) || 120 })}
+                  className="w-full bg-[#080a0f] border border-[#232b3d] rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Máx (maxTrackDuration):</span>
+                <input
+                  type="number"
+                  min={300}
+                  max={3600}
+                  value={form.maxTrackDuration || 1200}
+                  onChange={e => setForm({ ...form, maxTrackDuration: parseInt(e.target.value, 10) || 1200 })}
+                  className="w-full bg-[#080a0f] border border-[#232b3d] rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Enabled Genres */}
+        <div className="pt-2">
+          <label className="text-zinc-400 block mb-1.5 text-xs font-bold">
+            Géneros habilitados en el rastreador autónomo (enabledGenres):
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              'Hard Techno',
+              'Industrial Techno',
+              'Dark Techno',
+              'Peak Time Techno',
+              'EBM',
+              'Synthwave',
+              'Raw Techno',
+              'Warehouse Techno'
+            ].map(genre => {
+              const currentGenres = form.enabledGenres || [
+                'Hard Techno',
+                'Industrial Techno',
+                'Dark Techno',
+                'Peak Time Techno',
+                'EBM',
+                'Synthwave'
+              ];
+              const isSelected = currentGenres.includes(genre);
+              return (
+                <button
+                  key={genre}
+                  type="button"
+                  onClick={() => {
+                    const nextGenres = isSelected
+                      ? currentGenres.filter(g => g !== genre)
+                      : [...currentGenres, genre];
+                    setForm({ ...form, enabledGenres: nextGenres });
+                  }}
+                  className={`px-2.5 py-1 text-[11px] rounded-lg font-mono transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(6,182,212,0.2)]'
+                      : 'bg-[#080a0f] text-zinc-500 border border-[#232b3d] hover:border-zinc-500'
+                  }`}
+                >
+                  {genre} {isSelected ? '✓' : '+'}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

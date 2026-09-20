@@ -136,6 +136,37 @@ export interface SettingsConfig {
   crossfadeDurationSec: number;
   highThinkingEnabled: boolean;
   themeMode: 'cyberpunk-dark' | 'industrial-monochrome' | 'neon-terminal';
+  autoScout: boolean;
+  scoutIntervalMinutes: number;
+  autoDownload: boolean;
+  avoidDuplicates: boolean;
+  maxDownloadsPerCycle: number;
+  minTrackDuration: number;
+  maxTrackDuration: number;
+  enabledGenres: string[];
+}
+
+export interface ScoutSchedulerLog {
+  tag: 'SCOUT' | 'QUEUE' | 'DOWNLOAD' | 'LIBRARY' | string;
+  message: string;
+  time: string;
+  line?: string;
+}
+
+export interface ScoutSchedulerStatus {
+  active: boolean;
+  isRunningCycle: boolean;
+  cycleCount: number;
+  lastRunTimestamp: number;
+  nextRunTimestamp: number;
+  totalFoundLifetime: number;
+  totalQueuedLifetime: number;
+  totalDownloadedLifetime: number;
+  scoutIntervalMinutes: number;
+  autoDownload: boolean;
+  avoidDuplicates: boolean;
+  queries: string[];
+  recentLogs: string[];
 }
 
 export interface HunterFilterParams {
