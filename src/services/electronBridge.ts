@@ -67,102 +67,23 @@ export const electronBridge = {
       }
     }
 
-    // Try backend API first if running in web/Express server
+    // Try backend API if running in web/Express server
     try {
       const q = encodeURIComponent(params.searchQuery || '');
       const genre = encodeURIComponent(params.genre || 'Industrial Techno');
       const apiRes = await fetch(`/api/hunter?genre=${genre}&q=${q}`);
       if (apiRes.ok) {
         const json = await apiRes.json();
-        if (json && Array.isArray(json.results) && json.results.length > 0) {
+        if (json && Array.isArray(json.results)) {
           console.log('[HUNTER] [BRIDGE] Backend API returned tracks count:', json.results.length);
           return json.results;
         }
       }
     } catch (apiErr) {
-      // Continue to local catalog fallback
+      console.warn('[HUNTER] [BRIDGE] Backend API search failed:', apiErr);
     }
 
-    // Web Fallback: search via local catalog engine with cross-genre and artist matching
-    const queryGenre = params.genre;
-    const q = (params.searchQuery || '').toLowerCase().trim();
-
-    // Import catalog from static memory for instant response
-    const { fallbackCatalog } = await import('./fallbackCatalog');
-    let list: Track[] = [];
-
-    if (q) {
-      // Search across ALL genres if a search query is typed
-      const allCatalogTracks: Track[] = [];
-      const seenIds = new Set<string>();
-
-      for (const tracks of Object.values(fallbackCatalog)) {
-        for (const t of tracks) {
-          if (!seenIds.has(t.id)) {
-            seenIds.add(t.id);
-            allCatalogTracks.push(t);
-          }
-        }
-      }
-
-      if (q.includes('hard techno')) {
-        list = allCatalogTracks.filter(t => t.genre === 'Hard Techno' || t.title.toLowerCase().includes('hard'));
-      } else if (q.includes('industrial techno') || q === 'industrial') {
-        list = allCatalogTracks.filter(t => t.genre === 'Industrial Techno' || t.title.toLowerCase().includes('industrial'));
-      } else {
-        list = allCatalogTracks.filter(
-          (t: Track) =>
-            t.title.toLowerCase().includes(q) ||
-            t.artist.toLowerCase().includes(q) ||
-            t.channel.toLowerCase().includes(q) ||
-            t.genre.toLowerCase().includes(q)
-        );
-      }
-
-      // If still empty (e.g. searching an uncataloged artist or track), generate valid real-feeling results
-      if (list.length === 0) {
-        const qStr = (params.searchQuery || '').trim();
-        console.log('[HUNTER] [BRIDGE] Query not in static catalog, generating valid dynamic tracks for:', qStr);
-        const formattedTitle = qStr.charAt(0).toUpperCase() + qStr.slice(1);
-        list = [
-          {
-            id: `dyn-${Date.now()}-1`,
-            title: `${formattedTitle} (Raw Vault Cut)`,
-            artist: qStr.toLowerCase().includes('mills') ? 'Jeff Mills' : (qStr.toLowerCase().includes('beyer') ? 'Adam Beyer' : formattedTitle),
-            channel: 'Underground Audio Stream',
-            duration: '06:18',
-            durationSec: 378,
-            genre: queryGenre || 'Industrial Techno',
-            thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-            sourceUrl: `https://youtube.com/watch?v=live_${Date.now()}`,
-            bpm: 146,
-            key: 'Am',
-            publishedDate: '2026-09-20',
-            views: '95K'
-          },
-          {
-            id: `dyn-${Date.now()}-2`,
-            title: `${formattedTitle} (Neukölln Warehouse Edit)`,
-            artist: qStr.toLowerCase().includes('mills') ? 'Jeff Mills' : (qStr.toLowerCase().includes('beyer') ? 'Adam Beyer' : 'RAD X Underground'),
-            channel: 'RAD X Network',
-            duration: '05:52',
-            durationSec: 352,
-            genre: queryGenre || 'Hard Techno',
-            thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-            sourceUrl: `https://youtube.com/watch?v=live_${Date.now() + 1}`,
-            bpm: 154,
-            key: 'Fm',
-            publishedDate: '2026-09-18',
-            views: '140K'
-          }
-        ];
-      }
-    } else {
-      list = fallbackCatalog[queryGenre] || fallbackCatalog['Industrial Techno'] || [];
-    }
-
-    console.log(`[HUNTER] [BRIDGE] Final returning count: ${list.length} tracks`);
-    return list;
+    return [];
   },
 
   // Queue

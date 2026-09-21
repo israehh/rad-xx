@@ -116,9 +116,10 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
   };
 
   const newDiscoveries = scoutResults.filter(r => r.status === 'new');
-  const avgTrend = scoutResults.length
-    ? Math.round(scoutResults.reduce((acc, curr) => acc + curr.trendScore, 0) / scoutResults.length)
-    : 0;
+  const scoredItems = scoutResults.filter(r => typeof r.trendScore === 'number');
+  const avgTrend = scoredItems.length
+    ? Math.round(scoredItems.reduce((acc, curr) => acc + (curr.trendScore || 0), 0) / scoredItems.length)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -292,7 +293,7 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
 
         <div className="space-y-2.5">
           {scoutResults.map(item => {
-            const isTopTier = item.trendScore >= 90;
+            const isTopTier = item.trendScore !== null && item.trendScore !== undefined && item.trendScore >= 90;
 
             return (
               <div
@@ -301,8 +302,12 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
               >
                 {/* Left: Thumbnail & Essential Data */}
                 <div className="flex items-center space-x-4 min-w-0 flex-1">
-                  <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-black border border-[#222b3f]">
-                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 bg-black border border-[#222b3f] flex items-center justify-center">
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Radio className="w-8 h-8 text-zinc-600" />
+                    )}
                     <button
                       onClick={() => onPlayTrack(item)}
                       className="absolute inset-0 m-auto w-8 h-8 rounded-full bg-black/70 hover:bg-cyan-500 hover:text-black text-cyan-400 border border-cyan-500/40 flex items-center justify-center transition-all cursor-pointer"
@@ -317,9 +322,11 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
                       <span className="text-sm font-semibold font-mono text-zinc-100 truncate">
                         {item.title}
                       </span>
-                      <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                        {item.genre}
-                      </span>
+                      {item.genre && (
+                        <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                          {item.genre}
+                        </span>
+                      )}
                       {isTopTier && (
                         <span className="px-1.5 py-0.2 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
                           <Zap className="w-2.5 h-2.5" />
@@ -329,11 +336,19 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-3 text-xs font-mono text-zinc-400">
-                      <span>{item.artist}</span>
-                      <span>•</span>
-                      <span className="text-zinc-500">{item.channel}</span>
-                      <span>•</span>
-                      <span>{item.duration}</span>
+                      <span>{item.artist || 'Desconocido'}</span>
+                      {item.channel && (
+                        <>
+                          <span>•</span>
+                          <span className="text-zinc-500">{item.channel}</span>
+                        </>
+                      )}
+                      {item.duration && (
+                        <>
+                          <span>•</span>
+                          <span>{item.duration}</span>
+                        </>
+                      )}
                       {item.bpm && (
                         <>
                           <span>•</span>
@@ -342,9 +357,11 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
                       )}
                     </div>
 
-                    <p className="text-[11px] font-mono text-zinc-400/80 line-clamp-1 italic">
-                      "{item.classificationNotes}"
-                    </p>
+                    {item.classificationNotes && (
+                      <p className="text-[11px] font-mono text-zinc-400/80 line-clamp-1 italic">
+                        "{item.classificationNotes}"
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -355,7 +372,9 @@ export const ScoutView: React.FC<ScoutViewProps> = ({
                       <TrendingUp className="w-3 h-3 text-cyan-400" />
                       <span>TENDENCIA</span>
                     </div>
-                    <div className="text-base font-bold text-amber-400">{item.trendScore} / 100</div>
+                    <div className="text-base font-bold text-amber-400">
+                      {item.trendScore !== null && item.trendScore !== undefined ? `${item.trendScore} / 100` : 'Real Live'}
+                    </div>
                   </div>
 
                   <div className="flex items-center space-x-2">

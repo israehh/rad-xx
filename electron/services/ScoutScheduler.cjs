@@ -1,12 +1,21 @@
 /**
- * RAD X ScoutScheduler Service
- * Autonomous 24/7 background music discovery, queueing, downloading and library indexing
+ * RAD X ScoutScheduler Service - Real Autonomous Audio Pipeline
+ * Autonomous 24/7 background music discovery, duplicate filtering, queueing,
+ * real audio downloading via yt-dlp, and physical library indexing.
  */
 
 const path = require('path');
+const fs = require('fs');
 const EventEmitter = require('events');
+const { searchMedia, inspectAudioFile, formatBytes } = require('../utils/ytdlp.cjs');
 
-const SCOUT_QUERIES = [
+const SCOUT_DISCOVERY_TARGETS = [
+  'Industrial Techno',
+  'Hard Techno',
+  'Dark Techno',
+  'Peak Time Techno',
+  'EBM',
+  'Synthwave',
   'Jeff Mills',
   'Adam Beyer',
   'Kobosil',
@@ -14,292 +23,7 @@ const SCOUT_QUERIES = [
   'Alignment',
   'I Hate Models',
   'Dax J',
-  'Amelie Lens',
-  'Industrial Techno',
-  'Hard Techno',
-  'Dark Techno',
-  'Peak Time Techno',
-  'Raw Techno',
-  'Warehouse Techno',
-  'EBM',
-  'Synthwave'
-];
-
-// Rich underground discography catalog tailored to the mandated queries
-const UNDERGROUND_RADAR_VAULT = [
-  {
-    title: 'The Bells (Exhibitionist 909 Live Edit)',
-    artist: 'Jeff Mills',
-    channel: 'Axis Records Official',
-    duration: '05:44',
-    durationSec: 344,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_jm_01',
-    bpm: 138,
-    key: 'Am',
-    queryMatch: 'Jeff Mills'
-  },
-  {
-    title: 'Waveform Transmission Vol. 1 (Raw Tape Cut)',
-    artist: 'Jeff Mills',
-    channel: 'Tresor Berlin',
-    duration: '06:12',
-    durationSec: 372,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_jm_02',
-    bpm: 142,
-    key: 'Dm',
-    queryMatch: 'Jeff Mills'
-  },
-  {
-    title: 'Remainings III (Warehouse Overload)',
-    artist: 'Adam Beyer',
-    channel: 'Drumcode Records',
-    duration: '06:45',
-    durationSec: 405,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ab_01',
-    bpm: 145,
-    key: 'Fm',
-    queryMatch: 'Adam Beyer'
-  },
-  {
-    title: 'Your Mind (Drumcode Master Edition)',
-    artist: 'Adam Beyer & Bart Skils',
-    channel: 'Drumcode',
-    duration: '07:23',
-    durationSec: 443,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ab_02',
-    bpm: 134,
-    key: 'Am',
-    queryMatch: 'Adam Beyer'
-  },
-  {
-    title: 'Full Throttle (Berghain Neukölln Stomp)',
-    artist: 'Kobosil',
-    channel: 'R-Label Group',
-    duration: '05:48',
-    durationSec: 348,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kb_01',
-    bpm: 158,
-    key: 'Dm',
-    queryMatch: 'Kobosil'
-  },
-  {
-    title: '40000 Grad (Overdrive Distortion Mix)',
-    artist: 'Kobosil',
-    channel: 'R-Label Group',
-    duration: '06:05',
-    durationSec: 365,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kb_02',
-    bpm: 156,
-    key: 'Fm',
-    queryMatch: 'Kobosil'
-  },
-  {
-    title: 'Hellfire Overdrive (Berlin Vault Cut)',
-    artist: 'Klangkuenstler',
-    channel: 'Outworld Records',
-    duration: '06:05',
-    durationSec: 365,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kk_01',
-    bpm: 160,
-    key: 'F#m',
-    queryMatch: 'Klangkuenstler'
-  },
-  {
-    title: 'Weltschmerz (162 BPM Live Edit)',
-    artist: 'Klangkuenstler',
-    channel: 'Outworld Records',
-    duration: '05:52',
-    durationSec: 352,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kk_02',
-    bpm: 162,
-    key: 'Em',
-    queryMatch: 'Klangkuenstler'
-  },
-  {
-    title: 'Attack (KNTXT Vault Master)',
-    artist: 'Alignment',
-    channel: 'KNTXT',
-    duration: '05:40',
-    durationSec: 340,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_01',
-    bpm: 148,
-    key: 'Am',
-    queryMatch: 'Alignment'
-  },
-  {
-    title: 'Time (Dark Space Reconstruction)',
-    artist: 'Alignment',
-    channel: 'Suara / Voxnox',
-    duration: '06:14',
-    durationSec: 374,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_02',
-    bpm: 145,
-    key: 'Cm',
-    queryMatch: 'Alignment'
-  },
-  {
-    title: 'Daydream (Warehouse Acid Edit)',
-    artist: 'I Hate Models',
-    channel: 'Arts Collective',
-    duration: '07:44',
-    durationSec: 464,
-    genre: 'Dark Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ihm_01',
-    bpm: 148,
-    key: 'Am',
-    queryMatch: 'I Hate Models'
-  },
-  {
-    title: 'Totsuka No Tsurugi (Raw Rave Remaster)',
-    artist: 'I Hate Models',
-    channel: 'Disco Inferno',
-    duration: '08:12',
-    durationSec: 492,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ihm_02',
-    bpm: 154,
-    key: 'Fm',
-    queryMatch: 'I Hate Models'
-  },
-  {
-    title: 'Imperial Acid (Warehouse Relic Mix)',
-    artist: 'Dax J',
-    channel: 'Monnom Black',
-    duration: '06:40',
-    durationSec: 400,
-    genre: 'Dark Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_dj_01',
-    bpm: 146,
-    key: 'F#m',
-    queryMatch: 'Dax J'
-  },
-  {
-    title: 'Wir Leben Fuer Die Nacht (Monnom Stomp)',
-    artist: 'Dax J',
-    channel: 'Monnom Black',
-    duration: '06:25',
-    durationSec: 385,
-    genre: 'Warehouse Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_dj_02',
-    bpm: 150,
-    key: 'Dm',
-    queryMatch: 'Dax J'
-  },
-  {
-    title: 'In My Mind (Acid Horizon Mix)',
-    artist: 'Amelie Lens',
-    channel: 'Lenske Records',
-    duration: '06:33',
-    durationSec: 393,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_03',
-    bpm: 136,
-    key: 'Gm',
-    queryMatch: 'Amelie Lens'
-  },
-  {
-    title: 'Stay With Me (Exhale Rave Cut)',
-    artist: 'Amelie Lens',
-    channel: 'Exhale Recordings',
-    duration: '05:58',
-    durationSec: 358,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_04',
-    bpm: 142,
-    key: 'Am',
-    queryMatch: 'Amelie Lens'
-  },
-  {
-    title: 'Concrete Sledge (155 BPM Modular Slam)',
-    artist: 'Phase Fatale',
-    channel: 'Hospital Productions',
-    duration: '05:44',
-    durationSec: 344,
-    genre: 'EBM',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ebm_01',
-    bpm: 130,
-    key: 'Em',
-    queryMatch: 'EBM'
-  },
-  {
-    title: 'Flesh Sequence (Analogue Tape Overdrive)',
-    artist: 'Schwefelgelb',
-    channel: 'Fleisch Berlin',
-    duration: '05:18',
-    durationSec: 318,
-    genre: 'EBM',
-    thumbnail: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ebm_02',
-    bpm: 128,
-    key: 'F#m',
-    queryMatch: 'EBM'
-  },
-  {
-    title: 'Turbine Sector 9 (Warehouse Overdrive)',
-    artist: 'British Murder Boys',
-    channel: 'Downwards Records',
-    duration: '07:02',
-    durationSec: 422,
-    genre: 'Warehouse Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_wt_01',
-    bpm: 146,
-    key: 'Dm',
-    queryMatch: 'Warehouse Techno'
-  },
-  {
-    title: 'Rumble Matrix (152 BPM Raw Cut)',
-    artist: 'Surgeon',
-    channel: 'Dynamic Tension',
-    duration: '06:15',
-    durationSec: 375,
-    genre: 'Raw Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_rt_01',
-    bpm: 152,
-    key: 'Am',
-    queryMatch: 'Raw Techno'
-  },
-  {
-    title: 'Nightfall Chrome (Analog Voltage Lead)',
-    artist: 'Carpenter Brut',
-    channel: 'No Quarter Prod',
-    duration: '04:55',
-    durationSec: 295,
-    genre: 'Synthwave',
-    thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_sw_01',
-    bpm: 130,
-    key: 'Dm',
-    queryMatch: 'Synthwave'
-  }
+  'Amelie Lens'
 ];
 
 class ScoutScheduler extends EventEmitter {
@@ -328,7 +52,7 @@ class ScoutScheduler extends EventEmitter {
     const time = new Date().toISOString().substring(11, 19);
     const line = `[${time}] [${tag}] ${message}`;
     this.logs.unshift(line);
-    if (this.logs.length > 150) this.logs.pop();
+    if (this.logs.length > 200) this.logs.pop();
     console.log(`[${tag}] ${message}`);
     this.emit('log', { tag, message, time, line });
   }
@@ -336,7 +60,7 @@ class ScoutScheduler extends EventEmitter {
   setupDownloadEventListeners() {
     if (!this.downloadManager) return;
 
-    // Listen for download started
+    // Listen for real download progress/status
     this.downloadManager.on('jobStatusChange', (job) => {
       if (job.status === 'Downloading' && !job._loggedStarted) {
         job._loggedStarted = true;
@@ -344,29 +68,42 @@ class ScoutScheduler extends EventEmitter {
       }
     });
 
-    // Listen for download completed and auto-index to library
-    this.downloadManager.on('jobFinished', (job) => {
+    // Listen for real download completion and auto-index to library with real audio metadata
+    this.downloadManager.on('jobFinished', async (job) => {
       this.log('DOWNLOAD', `Completed ${job.artist} - ${job.title}`);
       this.totalDownloadedLifetime++;
 
       try {
-        const fileName = path.basename(job.targetPath);
+        const filePath = job.targetPath;
+        const fileName = path.basename(filePath);
+
+        // Inspect the physical file to extract authentic metadata
+        let audioMeta = null;
+        if (fs.existsSync(filePath)) {
+          audioMeta = await inspectAudioFile(filePath);
+        }
+
+        const stats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+        const fileSize = stats ? stats.size : (job.progress?.totalBytes || 0);
+
         const indexedTrack = {
           id: `lib-${job.trackId || Date.now()}`,
-          filePath: job.targetPath,
+          filePath,
           fileName,
-          title: job.title,
-          artist: job.artist || 'Artista RAD X',
-          album: 'Descargas RAD X',
-          genre: job.genre || 'Industrial Techno',
-          bpm: 150,
-          key: 'Am',
-          duration: '06:00',
-          durationSec: 360,
-          format: job.format || 'MP3',
-          fileSize: job.progress?.totalBytes || 14500000,
-          fileSizeFormatted: job.progress?.sizeFormatted || '14.5 MB',
-          bitrate: job.format === 'WEBM' ? '160 kbps Opus' : '320 kbps',
+          title: job.title || 'Unknown Title',
+          artist: job.artist || null,
+          album: 'RAD X Offline Library',
+          genre: job.genre || null,
+          bpm: job.bpm || null,
+          key: job.key || null,
+          duration: audioMeta?.duration || job.actualDuration || job.duration || null,
+          durationSec: audioMeta?.durationSec || job.actualDurationSec || job.durationSec || null,
+          format: audioMeta?.format || job.actualFormat || job.format || null,
+          channels: audioMeta?.channels || job.actualChannels || null,
+          codec: audioMeta?.codec || job.actualCodec || null,
+          fileSize,
+          fileSizeFormatted: formatBytes(fileSize),
+          bitrate: audioMeta?.bitrate || job.actualBitrate || null,
           dateAdded: Date.now(),
           lastScanned: Date.now(),
           folderCategory: 'Scout',
@@ -375,7 +112,7 @@ class ScoutScheduler extends EventEmitter {
 
         const added = this.libraryManager.addTrack(indexedTrack);
         if (added) {
-          this.log('LIBRARY', `Indexed ${job.artist} - ${job.title}`);
+          this.log('LIBRARY', `Indexed ${job.artist} - ${job.title} (${indexedTrack.fileSizeFormatted}, ${indexedTrack.duration})`);
         }
       } catch (err) {
         console.error('[ScoutScheduler] Library indexing error:', err);
@@ -398,12 +135,14 @@ class ScoutScheduler extends EventEmitter {
     this.log('SCOUT', `Autonomous 24/7 Discovery Engine activated. Next cycle scheduled in ${intervalMinutes} minutes.`);
 
     if (this.timer) clearInterval(this.timer);
-    this.nextRunTimestamp = Date.now() + 3000; // Run initial sweep 3 seconds after boot
+    this.nextRunTimestamp = Date.now() + 4000;
 
+    // Run initial discovery cycle shortly after startup
     setTimeout(() => {
       this.executeCycle();
-    }, 3000);
+    }, 4000);
 
+    // Schedule regular cycle
     this.timer = setInterval(() => {
       this.executeCycle();
     }, intervalMs);
@@ -439,7 +178,6 @@ class ScoutScheduler extends EventEmitter {
     };
   }
 
-  // --- RECOVERY RESTORATION ---
   restorePendingRecovery() {
     this.log('SCOUT', 'Scanning for interrupted downloads and pending queues to restore...');
     try {
@@ -466,7 +204,6 @@ class ScoutScheduler extends EventEmitter {
     }
   }
 
-  // --- DUPLICATE DETECTION LOGIC ---
   normalizeText(text) {
     if (!text) return '';
     return text
@@ -494,7 +231,7 @@ class ScoutScheduler extends EventEmitter {
       if (candArtistNorm && libArtistNorm && candArtistNorm === libArtistNorm && candTitleNorm.includes(libTitleNorm)) {
         return true;
       }
-      if (candidate.durationSec && lib.durationSec && Math.abs(candidate.durationSec - lib.durationSec) <= 2 && candTitleNorm === libTitleNorm) {
+      if (candidate.durationSec && lib.durationSec && Math.abs(candidate.durationSec - lib.durationSec) <= 3 && candTitleNorm === libTitleNorm) {
         return true;
       }
     }
@@ -502,9 +239,9 @@ class ScoutScheduler extends EventEmitter {
     // 2. Check downloads.json (active or finished)
     for (const job of downloadJobs) {
       const jobTitleNorm = this.normalizeText(job.title);
-      const jobArtistNorm = this.normalizeText(job.artist);
       if (candTitleNorm === jobTitleNorm) return true;
       if (job.targetPath && path.basename(job.targetPath).toLowerCase() === candFileName) return true;
+      if (job.sourceUrl && candidate.sourceUrl && job.sourceUrl === candidate.sourceUrl) return true;
     }
 
     // 3. Check queue.json
@@ -516,7 +253,6 @@ class ScoutScheduler extends EventEmitter {
     return false;
   }
 
-  // --- AUTONOMOUS EXECUTION CYCLE ---
   async executeCycle() {
     if (this.isRunningCycle) return;
     this.isRunningCycle = true;
@@ -527,24 +263,33 @@ class ScoutScheduler extends EventEmitter {
     const intervalMinutes = Math.max(1, settings.scoutIntervalMinutes || 30);
     this.nextRunTimestamp = Date.now() + intervalMinutes * 60 * 1000;
 
-    this.log('SCOUT', `Starting autonomous discovery cycle #${this.cycleCount} across ${SCOUT_QUERIES.length} target queries`);
+    this.log('SCOUT', `Starting autonomous discovery cycle #${this.cycleCount} with live network extraction`);
 
     try {
       const libraryTracks = this.libraryManager ? this.libraryManager.getAll() : [];
       const downloadJobs = this.downloadManager ? this.downloadManager.getAll() : [];
       const queueItems = this.queueManager ? this.queueManager.getAll() : [];
 
-      // Discover tracks matching enabled genres & duration bounds
+      // Determine query pool: combine user's enabled genres and artist radar
+      const queryPool = [...(settings.enabledGenres || []), ...SCOUT_DISCOVERY_TARGETS];
+      // Pick 2-3 targets per cycle to avoid network flooding
+      const targetQueryIndex = (this.cycleCount - 1) % queryPool.length;
+      const primaryTarget = queryPool[targetQueryIndex];
+      const secondaryTarget = queryPool[(targetQueryIndex + 1) % queryPool.length];
+
+      this.log('SCOUT', `Scanning live sources for target themes: "${primaryTarget}" & "${secondaryTarget}"`);
+
+      // Search real tracks via yt-dlp
+      const rawDiscovered = await Promise.all([
+        searchMedia({ query: `${primaryTarget} underground set`, genre: primaryTarget, limit: 10 }),
+        searchMedia({ query: `${secondaryTarget} warehouse edit`, genre: secondaryTarget, limit: 10 })
+      ]);
+
       const candidatePool = [];
-      const enabledGenresSet = new Set(settings.enabledGenres || []);
+      const allFound = [...rawDiscovered[0], ...rawDiscovered[1]];
 
-      for (const track of UNDERGROUND_RADAR_VAULT) {
-        // Genre check
-        if (enabledGenresSet.size > 0 && !enabledGenresSet.has(track.genre)) {
-          continue;
-        }
-
-        // Duration filter
+      for (const track of allFound) {
+        // Duration filter using real audio length
         if (track.durationSec < settings.minTrackDuration || track.durationSec > settings.maxTrackDuration) {
           continue;
         }
@@ -554,61 +299,48 @@ class ScoutScheduler extends EventEmitter {
           continue;
         }
 
-        candidatePool.push({
-          id: `scout-${track.queryMatch.toLowerCase().replace(/\s+/g, '_')}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          ...track
-        });
+        candidatePool.push(track);
       }
 
       const foundCount = candidatePool.length;
       this.totalFoundLifetime += foundCount;
-      this.log('SCOUT', `Found ${foundCount} new tracks`);
+      this.log('SCOUT', `Discovered ${foundCount} new valid underground tracks`);
 
       if (foundCount === 0) {
         this.log('SCOUT', 'No new eligible tracks found in this cycle (all existing or filtered). Standing by.');
         return;
       }
 
-      // Add valid tracks up to maxDownloadsPerCycle to queue & launch downloads
-      const toProcess = candidatePool.slice(0, settings.maxDownloadsPerCycle);
-      let addedToQueueCount = 0;
+      // Limit according to maxDownloadsPerCycle
+      const limit = Math.min(candidatePool.length, settings.maxDownloadsPerCycle || 20);
+      const selectedTracks = candidatePool.slice(0, limit);
 
-      for (const track of toProcess) {
-        // 1. Add to queue
+      // Add to Queue
+      for (const track of selectedTracks) {
         if (this.queueManager) {
-          if (typeof this.queueManager.addTrack === 'function') {
-            this.queueManager.addTrack(track, settings.preferredFormat);
-          } else {
-            this.queueManager.add(track, settings.preferredFormat);
-          }
-          addedToQueueCount++;
+          this.queueManager.add(track, settings.preferredFormat || 'MP3');
+          this.log('QUEUE', `Added ${track.artist} - ${track.title} (${track.duration})`);
           this.totalQueuedLifetime++;
         }
 
-        // 2. Automatically launch download if autoDownload is enabled
+        // Trigger real download if autoDownload is enabled
         if (settings.autoDownload && this.downloadManager) {
-          if (typeof this.downloadManager.startDownload === 'function') {
-            this.downloadManager.startDownload(track, settings.preferredFormat);
-          } else {
-            this.downloadManager.addJob(track, settings.preferredFormat);
-          }
+          this.downloadManager.addJob(track, settings.preferredFormat || 'MP3');
         }
       }
 
-      this.log('QUEUE', `Added ${addedToQueueCount} tracks`);
-
+      this.log('SCOUT', `Cycle #${this.cycleCount} successfully dispatched ${selectedTracks.length} tracks to queue & download engine.`);
     } catch (err) {
-      console.error('[ScoutScheduler] Cycle execution error:', err);
-      this.log('SCOUT', `Cycle error: ${err.message}`);
+      console.error('[ScoutScheduler] Discovery cycle error:', err);
+      this.log('SCOUT', `Notice in cycle #${this.cycleCount}: ${err.message}`);
     } finally {
       this.isRunningCycle = false;
     }
   }
 
   getStatus() {
-    const settings = this.getMergedSettings();
     return {
-      active: !!this.timer && settings.autoScout,
+      autoScout: this.getMergedSettings().autoScout,
       isRunningCycle: this.isRunningCycle,
       cycleCount: this.cycleCount,
       lastRunTimestamp: this.lastRunTimestamp,
@@ -616,13 +348,9 @@ class ScoutScheduler extends EventEmitter {
       totalFoundLifetime: this.totalFoundLifetime,
       totalQueuedLifetime: this.totalQueuedLifetime,
       totalDownloadedLifetime: this.totalDownloadedLifetime,
-      scoutIntervalMinutes: settings.scoutIntervalMinutes,
-      autoDownload: settings.autoDownload,
-      avoidDuplicates: settings.avoidDuplicates,
-      queries: SCOUT_QUERIES,
-      recentLogs: this.logs.slice(0, 30)
+      logs: [...this.logs]
     };
   }
 }
 
-module.exports = { ScoutScheduler, SCOUT_QUERIES };
+module.exports = { ScoutScheduler };

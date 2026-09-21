@@ -5,6 +5,8 @@
 
 const { ipcMain, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { inspectAudioFile, formatBytes } = require('../utils/ytdlp.cjs');
 
 function registerIpcHandlers(managers, mainWindow) {
   const { queueManager, downloadManager, libraryManager, settingsManager, hunterEngine, scoutEngine, scoutScheduler } = managers;
@@ -99,34 +101,44 @@ function registerIpcHandlers(managers, mainWindow) {
     }
   });
 
-  // Automatically integrate completed download into Library and tracks.json
-  downloadManager.on('jobFinished', (job) => {
+  // Automatically integrate completed download into Library and tracks.json with authentic metadata
+  downloadManager.on('jobFinished', async (job) => {
     try {
-      const fileName = path.basename(job.targetPath);
+      const filePath = job.targetPath;
+      const fileName = path.basename(filePath);
       const rawName = fileName.replace(/\.[^/.]+$/, '');
       const parts = rawName.split(' - ');
-      const artist = parts.length > 1 ? parts[0].trim() : (job.artist || 'Artista RAD X');
+      const artist = parts.length > 1 ? parts[0].trim() : (job.artist || 'Underground Artist');
       const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : (job.title || rawName);
+
+      let audioMeta = null;
+      if (fs.existsSync(filePath)) {
+        audioMeta = await inspectAudioFile(filePath);
+      }
+
+      const stats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+      const fileSize = stats ? stats.size : (job.progress?.totalBytes || 12000000);
 
       const newLibraryTrack = {
         id: `lib-${job.trackId || Date.now()}`,
-        filePath: job.targetPath,
-        fileName: fileName,
-        title: title,
-        artist: artist,
+        filePath,
+        fileName,
+        title,
+        artist,
         album: 'Descargas RAD X',
         genre: job.genre || 'Industrial Techno',
-        bpm: 150,
-        key: 'Am',
-        duration: '06:00',
-        durationSec: 360,
-        format: job.format,
-        fileSize: job.progress?.totalBytes || 14500000,
-        fileSizeFormatted: job.progress?.sizeFormatted || '14.5 MB',
-        bitrate: job.format === 'WEBM' ? '160 kbps Opus' : '320 kbps',
+        bpm: job.bpm || 148,
+        key: job.key || 'Am',
+        duration: audioMeta?.duration || job.duration || '05:00',
+        durationSec: audioMeta?.durationSec || job.durationSec || 300,
+        format: audioMeta?.format || job.format || 'MP3',
+        channels: audioMeta?.channels || 2,
+        fileSize,
+        fileSizeFormatted: formatBytes(fileSize),
+        bitrate: audioMeta?.bitrate || (job.format === 'WEBM' ? '160 kbps Opus' : '320 kbps'),
         dateAdded: Date.now(),
         lastScanned: Date.now(),
-        folderCategory: job.targetPath.toLowerCase().includes('scout') ? 'Scout' : 'Main',
+        folderCategory: filePath.toLowerCase().includes('scout') ? 'Scout' : 'Main',
         playCount: 0
       };
 

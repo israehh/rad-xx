@@ -46,13 +46,13 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     const matchesFormat =
       currentFmt === 'TODOS' ||
       currentFmt === 'ALL' ||
-      t.format.toUpperCase() === currentFmt;
+      (t.format || '').toUpperCase() === currentFmt;
     const q = searchFilter.toLowerCase().trim();
     const matchesSearch =
       !q ||
       t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.genre.toLowerCase().includes(q);
+      (t.artist || '').toLowerCase().includes(q) ||
+      (t.genre || '').toLowerCase().includes(q);
     return matchesFormat && matchesSearch;
   });
 
@@ -191,13 +191,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         </div>
                       </td>
                       <td className="py-3 px-4 text-zinc-400">
-                        <div>{entry.artist}</div>
+                        <div>{entry.artist || 'Desconocido'}</div>
                         <div className="text-[10px] text-zinc-600">{entry.album || 'Sencillo'}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700">
-                          {entry.genre}
-                        </span>
+                        {entry.genre ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            {entry.genre}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">--</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-amber-400">
                         {entry.bpm ? `${entry.bpm} BPM` : '--'}

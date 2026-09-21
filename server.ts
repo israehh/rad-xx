@@ -6,8 +6,19 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
+import { createRequire } from 'module';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+
+const require = createRequire(import.meta.url);
+const {
+  resolveYtDlpPath,
+  searchMedia,
+  inspectAudioFile,
+  parseProgressLine,
+  formatBytes
+} = require('./electron/utils/ytdlp.cjs');
 
 const projectRoot = process.cwd();
 const dataDir = path.join(projectRoot, 'data');
@@ -49,168 +60,9 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Persistent data stores with real data/ JSON integration
-const defaultTracks = [
-  {
-    id: 'lib-01',
-    filePath: path.join(downloadsDir, 'Klangkuenstler - Die Hölle Tanzt.mp3'),
-    fileName: 'Klangkuenstler - Die Hölle Tanzt.mp3',
-    title: 'Die Hölle Tanzt (Raw Industrial Master)',
-    artist: 'Klangkuenstler',
-    album: 'Outworld Recordings',
-    genre: 'Industrial Techno',
-    bpm: 156,
-    key: 'Fm',
-    duration: '06:12',
-    durationSec: 372,
-    format: 'MP3',
-    fileSize: 14850000,
-    fileSizeFormatted: '14.2 MB',
-    bitrate: '320 kbps',
-    dateAdded: Date.now() - 86400000 * 5,
-    lastScanned: Date.now(),
-    folderCategory: 'Main',
-    playCount: 14
-  },
-  {
-    id: 'lib-02',
-    filePath: path.join(downloadsDir, 'I Hate Models - Daydream.flac'),
-    fileName: 'I Hate Models - Daydream.flac',
-    title: 'Daydream (Warehouse Acid Edit)',
-    artist: 'I Hate Models',
-    album: 'Arts Collective',
-    genre: 'Dark Techno',
-    bpm: 148,
-    key: 'Am',
-    duration: '07:44',
-    durationSec: 464,
-    format: 'FLAC',
-    fileSize: 52400000,
-    fileSizeFormatted: '49.9 MB',
-    bitrate: 'Lossless 24-bit',
-    dateAdded: Date.now() - 86400000 * 2,
-    lastScanned: Date.now(),
-    folderCategory: 'Scout',
-    playCount: 28
-  },
-  {
-    id: 'lib-03',
-    filePath: 'C:\\Music\\Kobosil - Full Throttle.wav',
-    fileName: 'Kobosil - Full Throttle.wav',
-    title: 'Full Throttle (Neukölln Stomp)',
-    artist: 'Kobosil',
-    album: 'R-Label Group',
-    genre: 'Hard Techno',
-    bpm: 158,
-    key: 'Dm',
-    duration: '05:48',
-    durationSec: 348,
-    format: 'WAV',
-    fileSize: 62900000,
-    fileSizeFormatted: '60.0 MB',
-    bitrate: '1411 kbps',
-    dateAdded: Date.now() - 86400000 * 9,
-    lastScanned: Date.now(),
-    folderCategory: 'Main',
-    playCount: 41
-  },
-  {
-    id: 'lib-04',
-    filePath: 'C:\\Music\\Boy Harsher - Pain.mp3',
-    fileName: 'Boy Harsher - Pain.mp3',
-    title: 'Pain (Industrial Darkwave Mix)',
-    artist: 'Boy Harsher',
-    album: 'Lesser Man EP',
-    genre: 'EBM',
-    bpm: 122,
-    key: 'Gm',
-    duration: '07:08',
-    durationSec: 428,
-    format: 'MP3',
-    fileSize: 17100000,
-    fileSizeFormatted: '16.3 MB',
-    bitrate: '320 kbps',
-    dateAdded: Date.now() - 86400000 * 12,
-    lastScanned: Date.now(),
-    folderCategory: 'Main',
-    playCount: 33
-  },
-  {
-    id: 'lib-05',
-    filePath: 'C:\\Music\\Scout\\Carpenter Brut - Turbo Killer.webm',
-    fileName: 'Carpenter Brut - Turbo Killer.webm',
-    title: 'Turbo Killer (Overdrive Master)',
-    artist: 'Carpenter Brut',
-    album: 'Trilogy',
-    genre: 'Synthwave',
-    bpm: 130,
-    key: 'Em',
-    duration: '04:15',
-    durationSec: 255,
-    format: 'WEBM',
-    fileSize: 11200000,
-    fileSizeFormatted: '10.7 MB',
-    bitrate: '160 kbps Opus',
-    dateAdded: Date.now() - 86400000 * 1,
-    lastScanned: Date.now(),
-    folderCategory: 'Scout',
-    playCount: 19
-  }
-];
-
-const defaultScout = [
-  {
-    id: 'sct-01',
-    title: 'Resurrection of Distortion (Warehouse Cut)',
-    artist: 'Ancient Methods x Vatican Shadow',
-    channel: 'taapion_records',
-    duration: '06:33',
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=mock_scout_01',
-    bpm: 154,
-    key: 'Fm',
-    trendScore: 96,
-    detectionDate: '2026-09-20',
-    classificationNotes: 'Massive transient sub-bass rumble, 909 rimshot syncopation, 96% viral traction across Berlin underground sets.',
-    isDuplicate: false,
-    status: 'new'
-  },
-  {
-    id: 'sct-02',
-    title: 'Darkroom Screamer (162 BPM Overload)',
-    artist: 'Sara Landry',
-    channel: 'hekate_sound',
-    duration: '05:40',
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=mock_scout_02',
-    bpm: 162,
-    key: 'G#m',
-    trendScore: 92,
-    detectionDate: '2026-09-20',
-    classificationNotes: 'High-energy screamer synth, heavy sidechain distortion, dominant track on French warehouse circuits.',
-    isDuplicate: false,
-    status: 'new'
-  },
-  {
-    id: 'sct-03',
-    title: 'Shadow Realm Transmission (Acid Drone)',
-    artist: 'Cleric & Setaoc Mass',
-    channel: 'figure_records',
-    duration: '07:15',
-    genre: 'Dark Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=mock_scout_03',
-    bpm: 140,
-    key: 'Dm',
-    trendScore: 88,
-    detectionDate: '2026-09-19',
-    classificationNotes: 'Deep hypnotic modular acid loops, spatial convolution reverb, late-night industrial aesthetic.',
-    isDuplicate: false,
-    status: 'reviewed'
-  }
-];
+// Persistent data stores with real data/ JSON integration (no fake mocks)
+const defaultTracks: any[] = [];
+const defaultScout: any[] = [];
 
 const defaultSettings = {
   musicDirectory: downloadsDir,
@@ -260,33 +112,61 @@ app.get('/api/library', (req, res) => {
   res.json(libraryStore);
 });
 
-app.post('/api/library/scan', (req, res) => {
-  // Simulate directory discovery
-  const newTracks = [
-    {
-      id: `lib-scan-${Date.now()}`,
-      filePath: 'C:\\Music\\Dax J - Imperial Acid.wav',
-      fileName: 'Dax J - Imperial Acid.wav',
-      title: 'Imperial Acid (Warehouse Relic Mix)',
-      artist: 'Dax J',
-      album: 'Monnom Black',
-      genre: 'Dark Techno',
-      bpm: 146,
-      key: 'F#m',
-      duration: '06:40',
-      durationSec: 400,
-      format: 'WAV',
-      fileSize: 70500000,
-      fileSizeFormatted: '67.2 MB',
-      bitrate: '1411 kbps',
-      dateAdded: Date.now(),
-      lastScanned: Date.now(),
-      folderCategory: 'Main',
-      playCount: 1
+app.post('/api/library/scan', async (req, res) => {
+  let newFound = 0;
+  const existingPaths = new Set(libraryStore.map(t => (t.filePath || '').toLowerCase()));
+
+  for (const fld of musicFoldersStore) {
+    if (!fld.enabled || !fs.existsSync(fld.path)) continue;
+    try {
+      const files = fs.readdirSync(fld.path);
+      for (const file of files) {
+        const ext = path.extname(file).toLowerCase();
+        if (!['.mp3', '.flac', '.wav', '.webm', '.m4a', '.opus'].includes(ext)) continue;
+
+        const fullPath = path.join(fld.path, file);
+        if (!existingPaths.has(fullPath.toLowerCase())) {
+          const stats = fs.statSync(fullPath);
+          const rawName = path.basename(file, ext);
+          const parts = rawName.split(' - ');
+          const artist = parts.length > 1 ? parts[0].trim() : 'Underground Artist';
+          const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : rawName;
+          const audioMeta = await inspectAudioFile(fullPath);
+
+          libraryStore.unshift({
+            id: `lib-scan-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            filePath: fullPath,
+            fileName: file,
+            title,
+            artist,
+            album: fld.category === 'Scout' ? 'RAD X Scout' : 'Local Library',
+            genre: null,
+            bpm: null,
+            key: null,
+            duration: audioMeta.duration || null,
+            durationSec: audioMeta.durationSec || null,
+            format: audioMeta.format || ext.replace('.', '').toUpperCase(),
+            channels: audioMeta.channels || null,
+            codec: audioMeta.codec || null,
+            fileSize: stats.size,
+            fileSizeFormatted: formatBytes(stats.size),
+            bitrate: audioMeta.bitrate || null,
+            dateAdded: Date.now(),
+            lastScanned: Date.now(),
+            folderCategory: fld.category || 'Main',
+            playCount: 0
+          });
+          existingPaths.add(fullPath.toLowerCase());
+          newFound++;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Library Scan] Warning reading ${fld.path}:`, e);
     }
-  ];
-  libraryStore = [...newTracks, ...libraryStore];
-  res.json({ success: true, newTracksCount: newTracks.length, total: libraryStore.length });
+  }
+
+  saveJson('tracks.json', libraryStore);
+  res.json({ success: true, newTracksCount: newFound, totalCount: libraryStore.length });
 });
 
 app.delete('/api/library/:id', (req, res) => {
@@ -331,183 +211,39 @@ app.delete('/api/queue/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// --- HUNTER API ---
-const HUNTER_SERVER_CATALOG: Record<string, any[]> = {
-  'Industrial Techno': [
-    {
-      id: 'ind-01',
-      title: 'Monolith Overdrive (150 BPM Live Edit)',
-      artist: 'Ancient Methods',
-      channel: 'Boiler Room Berlin',
-      duration: '06:42',
-      durationSec: 402,
-      genre: 'Industrial Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_ind_01',
-      bpm: 150,
-      key: 'Fm',
-      publishedDate: '2026-08-14',
-      views: '450K'
-    },
-    {
-      id: 'ind-05',
-      title: 'The Bells (Exhibitionist 909 Live Edit)',
-      artist: 'Jeff Mills',
-      channel: 'Axis Records Official',
-      duration: '05:44',
-      durationSec: 344,
-      genre: 'Industrial Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_jm_01',
-      bpm: 138,
-      key: 'Am',
-      publishedDate: '2026-09-15',
-      views: '1.2M'
-    },
-    {
-      id: 'ind-06',
-      title: 'Waveform Transmission Vol. 1',
-      artist: 'Jeff Mills',
-      channel: 'Tresor Berlin',
-      duration: '06:12',
-      durationSec: 372,
-      genre: 'Industrial Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_jm_02',
-      bpm: 142,
-      key: 'Dm',
-      publishedDate: '2026-08-20',
-      views: '480K'
-    }
-  ],
-  'Hard Techno': [
-    {
-      id: 'hrd-01',
-      title: 'Hellfire Overdrive (Berlin Vault Cut)',
-      artist: 'Klangkuenstler',
-      channel: 'Outworld Records',
-      duration: '06:05',
-      durationSec: 365,
-      genre: 'Hard Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_hrd_01',
-      bpm: 160,
-      key: 'F#m',
-      publishedDate: '2026-08-30',
-      views: '512K'
-    },
-    {
-      id: 'hrd-02',
-      title: 'Screaming Steel (165 BPM Slammer)',
-      artist: 'Nico Moreno',
-      channel: 'Insolent Rave',
-      duration: '05:32',
-      durationSec: 332,
-      genre: 'Hard Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_hrd_02',
-      bpm: 165,
-      key: 'Em',
-      publishedDate: '2026-09-08',
-      views: '430K'
-    },
-    {
-      id: 'hrd-04',
-      title: 'Remainings III (Warehouse Overload)',
-      artist: 'Adam Beyer',
-      channel: 'Drumcode Records',
-      duration: '06:45',
-      durationSec: 405,
-      genre: 'Hard Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_ab_01',
-      bpm: 145,
-      key: 'Fm',
-      publishedDate: '2026-09-04',
-      views: '620K'
-    }
-  ],
-  'Peak Time Techno': [
-    {
-      id: 'pkt-03',
-      title: 'Your Mind (Drumcode Master Edition)',
-      artist: 'Adam Beyer & Bart Skils',
-      channel: 'Drumcode',
-      duration: '07:23',
-      durationSec: 443,
-      genre: 'Peak Time Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_ab_02',
-      bpm: 134,
-      key: 'Am',
-      publishedDate: '2026-09-11',
-      views: '3.4M'
-    }
-  ]
-};
-
-app.get('/api/hunter', (req, res) => {
-  const q = String(req.query.q || req.query.searchQuery || '').toLowerCase().trim();
+// --- HUNTER API (Real yt-dlp discovery) ---
+app.get('/api/hunter', async (req, res) => {
+  const q = String(req.query.q || req.query.searchQuery || '').trim();
   const genre = String(req.query.genre || 'Industrial Techno');
 
-  console.log(`[HUNTER] [SERVER] GET /api/hunter requested: genre="${genre}", q="${q}"`);
-  console.log(`[YT-DLP] Executing server crawler check for query: "${q || genre}"`);
+  console.log(`[HUNTER] [SERVER] Real search request: genre="${genre}", q="${q}"`);
 
-  const allTracks: any[] = [];
-  const seenIds = new Set<string>();
+  try {
+    const rawResults = await searchMedia({
+      query: q,
+      genre,
+      limit: 15
+    });
 
-  for (const tracks of Object.values(HUNTER_SERVER_CATALOG)) {
-    for (const t of tracks) {
-      if (!seenIds.has(t.id)) {
-        seenIds.add(t.id);
-        allTracks.push(t);
-      }
-    }
+    const results = rawResults.map((track: any) => {
+      const isDownloaded = downloadStore.some(j => j.trackId === track.id && j.status === 'Finished') ||
+                           libraryStore.some(t => t.title && t.title.toLowerCase() === track.title.toLowerCase());
+      const isQueued = queueStore.some(item => item.trackId === track.id) ||
+                       downloadStore.some(j => j.trackId === track.id && (j.status === 'Downloading' || j.status === 'Queued'));
+
+      return {
+        ...track,
+        isDownloaded,
+        isQueued
+      };
+    });
+
+    console.log(`[HUNTER] [SERVER] Returning ${results.length} real audio tracks`);
+    res.json({ success: true, results });
+  } catch (err: any) {
+    console.error('[HUNTER] [SERVER] Search error:', err);
+    res.json({ success: true, results: [] });
   }
-
-  let results: any[] = [];
-
-  if (q) {
-    if (q.includes('hard techno')) {
-      results = allTracks.filter(t => t.genre === 'Hard Techno' || t.title.toLowerCase().includes('hard'));
-    } else if (q.includes('industrial techno') || q === 'industrial') {
-      results = allTracks.filter(t => t.genre === 'Industrial Techno' || t.title.toLowerCase().includes('industrial'));
-    } else {
-      results = allTracks.filter(
-        t =>
-          t.title.toLowerCase().includes(q) ||
-          t.artist.toLowerCase().includes(q) ||
-          t.channel.toLowerCase().includes(q) ||
-          t.genre.toLowerCase().includes(q)
-      );
-    }
-
-    if (results.length === 0) {
-      const formattedTitle = q.charAt(0).toUpperCase() + q.slice(1);
-      results = [
-        {
-          id: `srv-dyn-${Date.now()}-1`,
-          title: `${formattedTitle} (Raw Vault Cut)`,
-          artist: q.includes('mills') ? 'Jeff Mills' : (q.includes('beyer') ? 'Adam Beyer' : formattedTitle),
-          channel: 'Underground Audio Stream',
-          duration: '06:18',
-          durationSec: 378,
-          genre: genre || 'Industrial Techno',
-          thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-          sourceUrl: `https://youtube.com/watch?v=live_${Date.now()}`,
-          bpm: 146,
-          key: 'Am',
-          publishedDate: '2026-09-20',
-          views: '95K'
-        }
-      ];
-    }
-  } else {
-    results = HUNTER_SERVER_CATALOG[genre] || HUNTER_SERVER_CATALOG['Industrial Techno'] || [];
-  }
-
-  console.log(`[HUNTER] [SERVER] Returning ${results.length} tracks to client`);
-  res.json({ success: true, results });
 });
 
 // --- AUTONOMOUS SCOUT LOGS & SCHEDULER INFRASTRUCTURE ---
@@ -540,379 +276,190 @@ const SCOUT_QUERIES = [
   'Synthwave'
 ];
 
-const UNDERGROUND_RADAR_VAULT = [
-  {
-    title: 'The Bells (Exhibitionist 909 Live Edit)',
-    artist: 'Jeff Mills',
-    channel: 'Axis Records Official',
-    duration: '05:44',
-    durationSec: 344,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_jm_01',
-    bpm: 138,
-    key: 'Am',
-    queryMatch: 'Jeff Mills'
-  },
-  {
-    title: 'Waveform Transmission Vol. 1 (Raw Tape Cut)',
-    artist: 'Jeff Mills',
-    channel: 'Tresor Berlin',
-    duration: '06:12',
-    durationSec: 372,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_jm_02',
-    bpm: 142,
-    key: 'Dm',
-    queryMatch: 'Jeff Mills'
-  },
-  {
-    title: 'Remainings III (Warehouse Overload)',
-    artist: 'Adam Beyer',
-    channel: 'Drumcode Records',
-    duration: '06:45',
-    durationSec: 405,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ab_01',
-    bpm: 145,
-    key: 'Fm',
-    queryMatch: 'Adam Beyer'
-  },
-  {
-    title: 'Your Mind (Drumcode Master Edition)',
-    artist: 'Adam Beyer & Bart Skils',
-    channel: 'Drumcode',
-    duration: '07:23',
-    durationSec: 443,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ab_02',
-    bpm: 134,
-    key: 'Am',
-    queryMatch: 'Adam Beyer'
-  },
-  {
-    title: 'Full Throttle (Berghain Neukölln Stomp)',
-    artist: 'Kobosil',
-    channel: 'R-Label Group',
-    duration: '05:48',
-    durationSec: 348,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kb_01',
-    bpm: 158,
-    key: 'Dm',
-    queryMatch: 'Kobosil'
-  },
-  {
-    title: '40000 Grad (Overdrive Distortion Mix)',
-    artist: 'Kobosil',
-    channel: 'R-Label Group',
-    duration: '06:05',
-    durationSec: 365,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kb_02',
-    bpm: 156,
-    key: 'Fm',
-    queryMatch: 'Kobosil'
-  },
-  {
-    title: 'Hellfire Overdrive (Berlin Vault Cut)',
-    artist: 'Klangkuenstler',
-    channel: 'Outworld Records',
-    duration: '06:05',
-    durationSec: 365,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kk_01',
-    bpm: 160,
-    key: 'F#m',
-    queryMatch: 'Klangkuenstler'
-  },
-  {
-    title: 'Weltschmerz (162 BPM Live Edit)',
-    artist: 'Klangkuenstler',
-    channel: 'Outworld Records',
-    duration: '05:52',
-    durationSec: 352,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_kk_02',
-    bpm: 162,
-    key: 'Em',
-    queryMatch: 'Klangkuenstler'
-  },
-  {
-    title: 'Attack (KNTXT Vault Master)',
-    artist: 'Alignment',
-    channel: 'KNTXT',
-    duration: '05:40',
-    durationSec: 340,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_01',
-    bpm: 148,
-    key: 'Am',
-    queryMatch: 'Alignment'
-  },
-  {
-    title: 'Time (Dark Space Reconstruction)',
-    artist: 'Alignment',
-    channel: 'Suara / Voxnox',
-    duration: '06:14',
-    durationSec: 374,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_02',
-    bpm: 145,
-    key: 'Cm',
-    queryMatch: 'Alignment'
-  },
-  {
-    title: 'Daydream (Warehouse Acid Edit)',
-    artist: 'I Hate Models',
-    channel: 'Arts Collective',
-    duration: '07:44',
-    durationSec: 464,
-    genre: 'Dark Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ihm_01',
-    bpm: 148,
-    key: 'Am',
-    queryMatch: 'I Hate Models'
-  },
-  {
-    title: 'Totsuka No Tsurugi (Raw Rave Remaster)',
-    artist: 'I Hate Models',
-    channel: 'Disco Inferno',
-    duration: '08:12',
-    durationSec: 492,
-    genre: 'Industrial Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ihm_02',
-    bpm: 154,
-    key: 'Fm',
-    queryMatch: 'I Hate Models'
-  },
-  {
-    title: 'Imperial Acid (Warehouse Relic Mix)',
-    artist: 'Dax J',
-    channel: 'Monnom Black',
-    duration: '06:40',
-    durationSec: 400,
-    genre: 'Dark Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_dj_01',
-    bpm: 146,
-    key: 'F#m',
-    queryMatch: 'Dax J'
-  },
-  {
-    title: 'Wir Leben Fuer Die Nacht (Monnom Stomp)',
-    artist: 'Dax J',
-    channel: 'Monnom Black',
-    duration: '06:25',
-    durationSec: 385,
-    genre: 'Warehouse Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_dj_02',
-    bpm: 150,
-    key: 'Dm',
-    queryMatch: 'Dax J'
-  },
-  {
-    title: 'In My Mind (Acid Horizon Mix)',
-    artist: 'Amelie Lens',
-    channel: 'Lenske Records',
-    duration: '06:33',
-    durationSec: 393,
-    genre: 'Peak Time Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_03',
-    bpm: 136,
-    key: 'Gm',
-    queryMatch: 'Amelie Lens'
-  },
-  {
-    title: 'Stay With Me (Exhale Rave Cut)',
-    artist: 'Amelie Lens',
-    channel: 'Exhale Recordings',
-    duration: '05:58',
-    durationSec: 358,
-    genre: 'Hard Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_al_04',
-    bpm: 142,
-    key: 'Am',
-    queryMatch: 'Amelie Lens'
-  },
-  {
-    title: 'Concrete Sledge (155 BPM Modular Slam)',
-    artist: 'Phase Fatale',
-    channel: 'Hospital Productions',
-    duration: '05:44',
-    durationSec: 344,
-    genre: 'EBM',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ebm_01',
-    bpm: 130,
-    key: 'Em',
-    queryMatch: 'EBM'
-  },
-  {
-    title: 'Flesh Sequence (Analogue Tape Overdrive)',
-    artist: 'Schwefelgelb',
-    channel: 'Fleisch Berlin',
-    duration: '05:18',
-    durationSec: 318,
-    genre: 'EBM',
-    thumbnail: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_ebm_02',
-    bpm: 128,
-    key: 'F#m',
-    queryMatch: 'EBM'
-  },
-  {
-    title: 'Turbine Sector 9 (Warehouse Overdrive)',
-    artist: 'British Murder Boys',
-    channel: 'Downwards Records',
-    duration: '07:02',
-    durationSec: 422,
-    genre: 'Warehouse Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_wt_01',
-    bpm: 146,
-    key: 'Dm',
-    queryMatch: 'Warehouse Techno'
-  },
-  {
-    title: 'Rumble Matrix (152 BPM Raw Cut)',
-    artist: 'Surgeon',
-    channel: 'Dynamic Tension',
-    duration: '06:15',
-    durationSec: 375,
-    genre: 'Raw Techno',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_rt_01',
-    bpm: 152,
-    key: 'Am',
-    queryMatch: 'Raw Techno'
-  },
-  {
-    title: 'Nightfall Chrome (Analog Voltage Lead)',
-    artist: 'Carpenter Brut',
-    channel: 'No Quarter Prod',
-    duration: '04:55',
-    durationSec: 295,
-    genre: 'Synthwave',
-    thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-    sourceUrl: 'https://youtube.com/watch?v=scout_sw_01',
-    bpm: 130,
-    key: 'Dm',
-    queryMatch: 'Synthwave'
-  }
-];
-
-// --- DOWNLOAD WORKER & CONTROLLER ---
-const activeDownloadTimers = new Map<string, NodeJS.Timeout>();
+// --- REAL DOWNLOAD WORKER & CONTROLLER (Powered by yt-dlp) ---
+const activeDownloadProcesses = new Map<string, any>();
 
 function startDownloadWorker(jobId: string) {
-  if (activeDownloadTimers.has(jobId)) {
-    clearInterval(activeDownloadTimers.get(jobId)!);
-    activeDownloadTimers.delete(jobId);
+  if (activeDownloadProcesses.has(jobId)) {
+    try { activeDownloadProcesses.get(jobId).kill('SIGTERM'); } catch {}
+    activeDownloadProcesses.delete(jobId);
   }
 
   const job = downloadStore.find(j => j.id === jobId);
   if (!job || job.status !== 'Downloading') return;
 
-  logAutonomous('DOWNLOAD', `Started ${job.artist} - ${job.title}`);
-  console.log(`[YT-DLP] Initializing stream capture: ${job.sourceUrl || job.title}`);
+  logAutonomous('DOWNLOAD', `Started real audio download: ${job.artist} - ${job.title}`);
 
-  const estSize = job.progress?.totalBytes || (job.format === 'WEBM' ? 45 * 1024 * 1024 : 14.5 * 1024 * 1024);
-  let currentPct = job.progress?.percentage || 0;
+  const ytdlpBin = resolveYtDlpPath((settingsStore as any).ytdlpPath);
+  console.log(`[YT-DLP] [SERVER] Spawning real download: ${job.sourceUrl || job.title} using ${ytdlpBin}`);
 
-  const timer = setInterval(() => {
-    const jobRef = downloadStore.find(j => j.id === jobId);
-    if (!jobRef || jobRef.status !== 'Downloading') {
-      clearInterval(timer);
-      activeDownloadTimers.delete(jobId);
-      return;
-    }
+  const targetDir = path.dirname(job.targetPath);
+  if (!fs.existsSync(targetDir)) {
+    try { fs.mkdirSync(targetDir, { recursive: true }); } catch {}
+  }
 
-    currentPct += 15;
-    if (currentPct >= 100) {
-      currentPct = 100;
-      clearInterval(timer);
-      activeDownloadTimers.delete(jobId);
+  const fmt = (job.format || 'MP3').toUpperCase();
+  const audioFormat = fmt === 'WEBM' ? 'opus' : (fmt === 'FLAC' ? 'flac' : (fmt === 'WAV' ? 'wav' : 'mp3'));
+  const baseOutputPattern = job.targetPath.replace(/\.[^/.]+$/, '') + '.%(ext)s';
 
-      jobRef.status = 'Finished';
-      jobRef.progress.percentage = 100;
-      jobRef.progress.downloadedBytes = estSize;
-      jobRef.progress.speed = '0.0 MB/s';
-      jobRef.progress.eta = '00:00';
+  const args = [
+    '-x',
+    '--audio-format', audioFormat,
+    '--audio-quality', '0',
+    '--newline',
+    '--no-playlist',
+    '--no-check-certificates',
+    '-o', baseOutputPattern,
+    job.sourceUrl
+  ];
 
-      logAutonomous('DOWNLOAD', `Completed ${jobRef.artist} - ${jobRef.title}`);
+  const executedCommand = `${ytdlpBin} ${args.join(' ')}`;
+  job.executedCommand = executedCommand;
 
-      // Write physical file to filesystem
-      try {
-        const fd = fs.openSync(jobRef.targetPath, 'w');
-        const header = Buffer.from(
-          `RAD_X_OFFLINE_AUDIO_PAYLOAD\nFORMAT=${jobRef.format}\nBITRATE=320kbps\nTITLE=${jobRef.title}\nARTIST=${jobRef.artist}\n`
-        );
-        fs.writeSync(fd, header);
-        if (estSize > header.length) {
-          fs.ftruncateSync(fd, estSize);
+  let child: any;
+  try {
+    child = spawn(ytdlpBin, args);
+  } catch (spawnErr: any) {
+    job.status = 'Failed';
+    job.exitCode = -1;
+    job.fullStderr = spawnErr.stack || spawnErr.message;
+    job.error = `Failed to spawn yt-dlp: ${spawnErr.message}`;
+    saveJson('downloads.json', downloadStore);
+    return;
+  }
+
+  activeDownloadProcesses.set(jobId, child);
+  let stderrBuffer = '';
+
+  child.stdout.on('data', (chunk: any) => {
+    const lines = chunk.toString().split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      if (line.includes('[download]') && line.includes('%')) {
+        const parsed = parseProgressLine(line);
+        if (parsed && parsed.percentage !== null) {
+          job.progress.percentage = parsed.percentage;
+          if (parsed.speed) job.progress.speed = parsed.speed;
+          if (parsed.eta) job.progress.eta = parsed.eta;
+          if (parsed.sizeFormatted) job.progress.sizeFormatted = parsed.sizeFormatted;
+          saveJson('downloads.json', downloadStore);
         }
-        fs.closeSync(fd);
-      } catch (writeErr) {
-        console.warn('[DOWNLOAD] [SERVER] Notice during physical file write:', writeErr);
+      } else if (line.includes('[ExtractAudio]') || line.includes('[Fixup')) {
+        job.progress.speed = 'Extracting audio...';
+        job.progress.eta = 'Converting';
+        saveJson('downloads.json', downloadStore);
+      } else if (line.includes('Destination:')) {
+        const match = line.match(/Destination:\s*(.+)$/i);
+        if (match && match[1]) {
+          const detectedPath = match[1].trim();
+          if (fs.existsSync(detectedPath)) {
+            job.targetPath = detectedPath;
+          }
+        }
       }
-
-      // Automatically register to libraryStore preventing duplicates
-      const isAlreadyInLib = libraryStore.some(
-        t => t.title.toLowerCase().trim() === jobRef.title.toLowerCase().trim()
-      );
-      if (!isAlreadyInLib) {
-        libraryStore.unshift({
-          id: `lib-${Date.now()}`,
-          filePath: jobRef.targetPath,
-          fileName: path.basename(jobRef.targetPath),
-          title: jobRef.title,
-          artist: jobRef.artist || 'Artista RAD X',
-          album: 'Descargas RAD X',
-          genre: jobRef.genre || 'Industrial Techno',
-          bpm: 148,
-          key: 'Am',
-          duration: '06:00',
-          durationSec: 360,
-          format: jobRef.format,
-          fileSize: estSize,
-          fileSizeFormatted: `${(estSize / (1024 * 1024)).toFixed(1)} MB`,
-          bitrate: jobRef.format === 'WEBM' ? '160 kbps Opus' : '320 kbps',
-          dateAdded: Date.now(),
-          lastScanned: Date.now(),
-          folderCategory: 'Scout',
-          playCount: 0
-        });
-        saveJson('tracks.json', libraryStore);
-        logAutonomous('LIBRARY', `Indexed ${jobRef.artist} - ${jobRef.title}`);
-        totalScoutDownloaded++;
-      }
-      saveJson('downloads.json', downloadStore);
-    } else {
-      jobRef.progress.percentage = currentPct;
-      jobRef.progress.downloadedBytes = Math.round((currentPct / 100) * estSize);
-      jobRef.progress.speed = '5.2 MB/s';
-      const secondsLeft = Math.max(1, Math.round((100 - currentPct) / 15));
-      jobRef.progress.eta = `00:0${secondsLeft}`;
-      saveJson('downloads.json', downloadStore);
     }
-  }, 500);
+  });
 
-  activeDownloadTimers.set(jobId, timer);
+  child.stderr.on('data', (chunk: any) => {
+    stderrBuffer += chunk.toString();
+    if (stderrBuffer.length > 5000) stderrBuffer = stderrBuffer.slice(-5000);
+  });
+
+  child.on('close', async (code: number) => {
+    activeDownloadProcesses.delete(jobId);
+    job.exitCode = code;
+    job.fullStderr = stderrBuffer.trim();
+
+    if (code === 0) {
+      let finalPath = job.targetPath;
+      if (!fs.existsSync(finalPath)) {
+        const dir = path.dirname(job.targetPath);
+        const baseName = path.basename(job.targetPath, path.extname(job.targetPath));
+        for (const ext of [audioFormat, 'mp3', 'opus', 'm4a', 'flac', 'wav']) {
+          const cand = path.join(dir, `${baseName}.${ext}`);
+          if (fs.existsSync(cand)) {
+            finalPath = cand;
+            job.targetPath = cand;
+            break;
+          }
+        }
+      }
+
+      if (fs.existsSync(finalPath)) {
+        const stats = fs.statSync(finalPath);
+        job.status = 'Finished';
+        job.finishedAt = Date.now();
+        job.progress.percentage = 100;
+        job.progress.totalBytes = stats.size;
+        job.progress.downloadedBytes = stats.size;
+        job.progress.sizeFormatted = formatBytes(stats.size);
+        job.progress.speed = '0.0 MB/s';
+        job.progress.eta = '00:00';
+        job.targetPath = finalPath;
+
+        logAutonomous('DOWNLOAD', `Completed download: ${job.artist} - ${job.title} (${formatBytes(stats.size)})`);
+
+        const audioMeta = await inspectAudioFile(finalPath);
+        job.actualDuration = audioMeta?.duration || null;
+        job.actualDurationSec = audioMeta?.durationSec || null;
+        job.actualBitrate = audioMeta?.bitrate || null;
+        job.actualChannels = audioMeta?.channels || null;
+        job.actualFormat = audioMeta?.format || null;
+        job.actualCodec = audioMeta?.codec || null;
+
+        const isAlreadyInLib = libraryStore.some(
+          t => t.filePath && t.filePath.toLowerCase() === finalPath.toLowerCase()
+        );
+        if (!isAlreadyInLib) {
+          libraryStore.unshift({
+            id: `lib-${job.trackId || Date.now()}`,
+            filePath: finalPath,
+            fileName: path.basename(finalPath),
+            title: job.title,
+            artist: job.artist || null,
+            album: finalPath.toLowerCase().includes('scout') ? 'RAD X Scout' : 'Local Library',
+            genre: job.genre || null,
+            bpm: null,
+            key: null,
+            duration: audioMeta?.duration || job.duration || null,
+            durationSec: audioMeta?.durationSec || job.durationSec || null,
+            format: audioMeta?.format || job.format || null,
+            channels: audioMeta?.channels || null,
+            codec: audioMeta?.codec || null,
+            fileSize: stats.size,
+            fileSizeFormatted: formatBytes(stats.size),
+            bitrate: audioMeta?.bitrate || null,
+            dateAdded: Date.now(),
+            lastScanned: Date.now(),
+            folderCategory: finalPath.toLowerCase().includes('scout') ? 'Scout' : 'Main',
+            playCount: 0
+          });
+          saveJson('tracks.json', libraryStore);
+          logAutonomous('LIBRARY', `Indexed real audio track into library: ${job.artist} - ${job.title}`);
+          totalScoutDownloaded++;
+        }
+        saveJson('downloads.json', downloadStore);
+      } else {
+        job.status = 'Failed';
+        job.error = `Download process finished with code 0, but no audio file found at: ${job.targetPath}`;
+        saveJson('downloads.json', downloadStore);
+      }
+    } else {
+      job.status = 'Failed';
+      let cleanErr = stderrBuffer.trim().split('\n').pop() || `Process exited with code ${code}`;
+      if (cleanErr.includes('Sign in to confirm')) {
+        cleanErr = 'YouTube requires sign-in verification for this IP. Try another track.';
+      }
+      job.error = `[Exit Code ${code}] ${cleanErr}`;
+      job.progress.speed = '0.0 MB/s';
+      console.error(`[YT-DLP ERROR] Download failed for job ${job.id}:`);
+      console.error(`  Command: ${executedCommand}`);
+      console.error(`  Exit code: ${code}`);
+      console.error(`  Stderr: ${stderrBuffer.trim()}`);
+      saveJson('downloads.json', downloadStore);
+      logAutonomous('DOWNLOAD', `Download failed: ${job.title} (${job.error})`);
+    }
+  });
 }
 
 // Duplicate normalization & check
@@ -987,37 +534,38 @@ async function runAutonomousScoutCycle() {
   const intervalMinutes = Math.max(1, settingsStore.scoutIntervalMinutes || 30);
   nextScoutRun = Date.now() + intervalMinutes * 60 * 1000;
 
-  logAutonomous('SCOUT', `Starting autonomous discovery cycle #${scoutCycleCount} across ${SCOUT_QUERIES.length} target queries`);
+  logAutonomous('SCOUT', `Starting autonomous discovery cycle #${scoutCycleCount}`);
 
   try {
-    const enabledGenresSet = new Set(settingsStore.enabledGenres || []);
+    const genres = settingsStore.enabledGenres && settingsStore.enabledGenres.length > 0
+      ? settingsStore.enabledGenres
+      : ['Industrial Techno', 'Hard Techno', 'Dark Techno', 'Raw Techno'];
+
+    const targetGenre = genres[(scoutCycleCount - 1) % genres.length];
+    logAutonomous('SCOUT', `Crawling network for underground theme: "${targetGenre}"`);
+
+    const liveTracks = await searchMedia({
+      query: `${targetGenre} underground club set`,
+      genre: targetGenre,
+      limit: 15
+    });
+
     const minSec = settingsStore.minTrackDuration || 120;
     const maxSec = settingsStore.maxTrackDuration || 1200;
     const candidatePool = [];
 
-    for (const track of UNDERGROUND_RADAR_VAULT) {
-      if (enabledGenresSet.size > 0 && !enabledGenresSet.has(track.genre)) {
-        continue;
-      }
-      if (track.durationSec < minSec || track.durationSec > maxSec) {
-        continue;
-      }
-      if (isDuplicateTrack(track)) {
-        continue;
-      }
-
-      candidatePool.push({
-        id: `scout-${track.queryMatch.toLowerCase().replace(/\s+/g, '_')}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        ...track
-      });
+    for (const track of liveTracks) {
+      if (track.durationSec < minSec || track.durationSec > maxSec) continue;
+      if (isDuplicateTrack(track)) continue;
+      candidatePool.push(track);
     }
 
     const foundCount = candidatePool.length;
     totalScoutFound += foundCount;
-    logAutonomous('SCOUT', `Found ${foundCount} new tracks`);
+    logAutonomous('SCOUT', `Discovered ${foundCount} new un-downloaded tracks`);
 
     if (foundCount === 0) {
-      logAutonomous('SCOUT', 'No new eligible tracks found in this cycle (all existing or filtered). Standing by.');
+      logAutonomous('SCOUT', 'No new eligible tracks found in this cycle. Standing by.');
       return;
     }
 
@@ -1043,33 +591,37 @@ async function runAutonomousScoutCycle() {
       queueStore.push(queueItem);
       addedCount++;
       totalScoutQueued++;
+      logAutonomous('QUEUE', `Queued discovery: ${track.artist} - ${track.title}`);
 
-      // 2. Automatically launch download if autoDownload
+      // 2. Automatically launch real download if autoDownload
       if (settingsStore.autoDownload !== false) {
-        const estSize = (settingsStore.preferredFormat === 'WEBM' ? 45 : 14.5) * 1024 * 1024;
-        const safeFileName = `${track.title.replace(/[\\/:*?"<>|]/g, '_')}.${(settingsStore.preferredFormat || 'MP3').toLowerCase()}`;
-        const targetPath = path.join(downloadsDir, safeFileName);
+        const ext = (settingsStore.preferredFormat || 'MP3').toLowerCase() === 'webm' ? 'webm' : 'mp3';
+        const cleanTitle = (track.title || 'track').replace(/[\\/:*?"<>|]/g, '_');
+        const cleanArtist = (track.artist || 'artist').replace(/[\\/:*?"<>|]/g, '_');
+        const safeFileName = `${cleanArtist} - ${cleanTitle}.${ext}`;
+        const scoutDir = path.join(downloadsDir, 'Scout');
+        const targetPath = path.join(scoutDir, safeFileName);
 
         const newJob = {
           id: `job-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           trackId: track.id,
           title: track.title,
-          artist: track.artist,
-          channel: track.channel,
-          thumbnail: track.thumbnail,
-          genre: track.genre,
+          artist: track.artist || null,
+          channel: track.channel || null,
+          thumbnail: track.thumbnail || null,
+          genre: track.genre || null,
           format: settingsStore.preferredFormat || 'MP3',
-          quality: '320kbps',
+          quality: (settingsStore.preferredFormat === 'FLAC' || settingsStore.preferredFormat === 'WAV') ? 'Lossless' : 'Standard',
           targetPath,
           status: 'Downloading',
           progress: {
             percentage: 0,
-            speed: '5.2 MB/s',
-            speedBytesPerSec: 5400000,
-            eta: '00:07',
+            speed: null,
+            speedBytesPerSec: 0,
+            eta: null,
             downloadedBytes: 0,
-            totalBytes: estSize,
-            sizeFormatted: `${(estSize / (1024 * 1024)).toFixed(1)} MB`
+            totalBytes: null,
+            sizeFormatted: null
           },
           queuedAt: Date.now(),
           sourceUrl: track.sourceUrl
@@ -1141,39 +693,45 @@ app.post('/api/downloads', (req, res) => {
   const { track, format = 'MP3' } = req.body;
   if (!track) return res.status(400).json({ error: 'Track required' });
 
-  const estSize = format === 'WEBM' ? 45 * 1024 * 1024 : 14.5 * 1024 * 1024;
-  const safeFileName = `${track.title.replace(/[\\/:*?"<>|]/g, '_')}.${format.toLowerCase()}`;
+  const ext = format.toLowerCase() === 'webm' ? 'webm' : (format.toLowerCase() === 'flac' ? 'flac' : 'mp3');
+  const cleanTitle = (track.title || 'track').replace(/[\\/:*?"<>|]/g, '_');
+  const cleanArtist = (track.artist || 'artist').replace(/[\\/:*?"<>|]/g, '_');
+  const safeFileName = `${cleanArtist} - ${cleanTitle}.${ext}`;
   const targetPath = path.join(downloadsDir, safeFileName);
 
   const newJob = {
     id: `job-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     trackId: track.id,
-    title: track.title,
-    artist: track.artist || 'Artista RAD X',
-    channel: track.channel || 'radx_network',
-    thumbnail: track.thumbnail,
-    genre: track.genre || 'Industrial Techno',
+    title: track.title || 'Unknown Track',
+    artist: track.artist || track.channel || null,
+    channel: track.channel || null,
+    thumbnail: track.thumbnail || null,
+    genre: track.genre || null,
+    bpm: track.bpm || null,
+    key: track.key || null,
+    duration: track.duration || null,
+    durationSec: track.durationSec || null,
     format,
-    quality: '320kbps',
+    quality: (format === 'FLAC' || format === 'WAV') ? 'Lossless' : 'Standard',
     targetPath,
     status: 'Downloading',
     progress: {
       percentage: 0,
-      speed: '5.2 MB/s',
-      speedBytesPerSec: 5400000,
-      eta: '00:07',
+      speed: null,
+      speedBytesPerSec: 0,
+      eta: null,
       downloadedBytes: 0,
-      totalBytes: estSize,
-      sizeFormatted: `${(estSize / (1024 * 1024)).toFixed(1)} MB`
+      totalBytes: null,
+      sizeFormatted: null
     },
     queuedAt: Date.now(),
-    sourceUrl: track.sourceUrl
+    sourceUrl: track.sourceUrl || ''
   };
 
   downloadStore.unshift(newJob);
   saveJson('downloads.json', downloadStore);
 
-  console.log(`[DOWNLOAD] [SERVER] Created new download job: ${newJob.id} for "${newJob.title}"`);
+  console.log(`[DOWNLOAD] [SERVER] Created new real download job: ${newJob.id} for "${newJob.title}"`);
   startDownloadWorker(newJob.id);
 
   res.json({ success: true, job: newJob });
@@ -1183,9 +741,9 @@ app.post('/api/downloads/:id/pause', (req, res) => {
   const jobId = req.params.id;
   const job = downloadStore.find(j => j.id === jobId);
   if (job) {
-    if (activeDownloadTimers.has(jobId)) {
-      clearInterval(activeDownloadTimers.get(jobId)!);
-      activeDownloadTimers.delete(jobId);
+    if (activeDownloadProcesses.has(jobId)) {
+      try { activeDownloadProcesses.get(jobId).kill('SIGTERM'); } catch {}
+      activeDownloadProcesses.delete(jobId);
     }
     job.status = 'Paused';
     job.progress.speed = '0.0 MB/s';
@@ -1200,7 +758,7 @@ app.post('/api/downloads/:id/resume', (req, res) => {
   const job = downloadStore.find(j => j.id === jobId);
   if (job) {
     job.status = 'Downloading';
-    job.progress.speed = '5.2 MB/s';
+    job.progress.speed = 'Connecting...';
     saveJson('downloads.json', downloadStore);
     console.log(`[DOWNLOAD] [SERVER] Job resumed: ${jobId}`);
     startDownloadWorker(jobId);
@@ -1215,8 +773,8 @@ app.post('/api/downloads/:id/retry', (req, res) => {
     job.status = 'Downloading';
     job.progress.percentage = 0;
     job.progress.downloadedBytes = 0;
-    job.progress.speed = '5.2 MB/s';
-    job.progress.eta = '00:07';
+    job.progress.speed = 'Connecting...';
+    job.progress.eta = '--:--';
     job.error = undefined;
     saveJson('downloads.json', downloadStore);
     console.log(`[DOWNLOAD] [SERVER] Job retry requested: ${jobId}`);
@@ -1228,9 +786,9 @@ app.post('/api/downloads/:id/retry', (req, res) => {
 
 app.delete('/api/downloads/:id', (req, res) => {
   const jobId = req.params.id;
-  if (activeDownloadTimers.has(jobId)) {
-    clearInterval(activeDownloadTimers.get(jobId)!);
-    activeDownloadTimers.delete(jobId);
+  if (activeDownloadProcesses.has(jobId)) {
+    try { activeDownloadProcesses.get(jobId).kill('SIGTERM'); } catch {}
+    activeDownloadProcesses.delete(jobId);
   }
   downloadStore = downloadStore.filter(j => j.id !== jobId);
   saveJson('downloads.json', downloadStore);
@@ -1248,29 +806,47 @@ app.get('/api/scout', (req, res) => {
   res.json(scoutStore);
 });
 
-app.post('/api/scout/scan', (req, res) => {
-  const newRadarTracks = [
-    {
-      id: `sct-radar-${Date.now()}`,
-      title: 'Acid Incursion (909 Sub-Breaker)',
-      artist: 'Kobos & Somewhen',
-      channel: 'r_label_group',
-      duration: '06:14',
-      genre: 'Industrial Techno',
-      thumbnail: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-      sourceUrl: 'https://youtube.com/watch?v=mock_radar_01',
-      bpm: 155,
-      key: 'Am',
-      trendScore: 98,
+app.post('/api/scout/scan', async (req, res) => {
+  try {
+    const genre = settingsStore.enabledGenres?.[0] || 'Industrial Techno';
+    const liveTracks = await searchMedia({ query: `${genre} underground club mix`, genre, limit: 5 });
+    const newRadarTracks = liveTracks.map((t: any) => ({
+      id: `sct-radar-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      title: t.title,
+      artist: t.artist || null,
+      channel: t.channel || null,
+      duration: t.duration || null,
+      durationSec: t.durationSec || null,
+      genre: t.genre || null,
+      thumbnail: t.thumbnail || null,
+      sourceUrl: t.sourceUrl,
+      bpm: null,
+      key: null,
+      trendScore: null,
       detectionDate: new Date().toISOString().split('T')[0],
-      classificationNotes: 'Discovered on Frankfurt underground feeds. Massive sub-kick distortion with rolling 16th-note acid riffs.',
-      isDuplicate: false,
+      classificationNotes: t.source ? `Discovered via ${t.source} live crawler.` : null,
+      isDuplicate: isDuplicateTrack(t),
       status: 'new'
-    }
-  ];
-  scoutStore = [...newRadarTracks, ...scoutStore];
-  saveJson('scout.json', scoutStore);
-  res.json({ success: true, newDiscoveriesCount: newRadarTracks.length, total: scoutStore.length });
+    }));
+
+    scoutStore = [...newRadarTracks, ...scoutStore];
+    saveJson('scout.json', scoutStore);
+    res.json({ success: true, newDiscoveriesCount: newRadarTracks.length, total: scoutStore.length });
+  } catch (err: any) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// Stream real audio file directly from disk
+app.get('/api/audio/stream/:id', (req, res) => {
+  const trackId = req.params.id;
+  const track = libraryStore.find(t => t.id === trackId) ||
+                downloadStore.find(d => (d.id === trackId || d.trackId === trackId) && d.status === 'Finished');
+  const filePath = (track as any)?.filePath || (track as any)?.targetPath;
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Audio file not found on disk' });
+  }
+  res.sendFile(path.resolve(filePath));
 });
 
 // --- SCOUT SCHEDULER REST ENDPOINTS ---

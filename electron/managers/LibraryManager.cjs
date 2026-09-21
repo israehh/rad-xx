@@ -1,12 +1,14 @@
 /**
- * RAD X Library Manager
- * Handles filesystem monitoring, directory scanning, format detection, and tracks.json synchronization
+ * RAD X Library Manager - Real Audio Filesystem Indexer
+ * Handles filesystem monitoring, directory scanning, authentic ffprobe metadata extraction,
+ * and tracks.json synchronization without fake demo tracks.
  */
 
 const fs = require('fs');
 const path = require('path');
+const { inspectAudioFile, formatBytes } = require('../utils/ytdlp.cjs');
 
-const SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.webm'];
+const SUPPORTED_EXTENSIONS = ['.mp3', '.flac', '.wav', '.m4a', '.webm', '.ogg', '.opus'];
 
 class LibraryManager {
   constructor(storageManager, settingsManager) {
@@ -15,127 +17,16 @@ class LibraryManager {
     this.STORAGE_KEY = 'tracks';
     this.FOLDERS_KEY = 'musicFolders';
     this.tracks = this.storage.get(this.STORAGE_KEY, []);
+
+    const userSettings = this.settings.getSettings();
+    const defaultMusicDir = userSettings.musicDirectory || (process.platform === 'win32' ? 'C:\\Music' : path.join(process.cwd(), 'downloads'));
+    const defaultScoutDir = userSettings.scoutDirectory || (process.platform === 'win32' ? 'C:\\Music\\Scout' : path.join(process.cwd(), 'downloads', 'Scout'));
+
     this.musicFolders = this.storage.get(this.FOLDERS_KEY, [
-      { id: 'fld-main', path: this.settings.getSettings().musicDirectory || 'C:\\Music', category: 'Main', enabled: true },
-      { id: 'fld-scout', path: this.settings.getSettings().scoutDirectory || 'C:\\Music\\Scout', category: 'Scout', enabled: true }
+      { id: 'fld-main', path: defaultMusicDir, category: 'Main', enabled: true },
+      { id: 'fld-scout', path: defaultScoutDir, category: 'Scout', enabled: true }
     ]);
     this.isScanning = false;
-
-    // Seed realistic initial demo library if empty
-    if (this.tracks.length === 0) {
-      this.seedInitialLibrary();
-    }
-  }
-
-  seedInitialLibrary() {
-    this.tracks = [
-      {
-        id: 'lib-01',
-        filePath: 'C:\\Music\\Klangkuenstler - Die Hölle Tanzt.mp3',
-        fileName: 'Klangkuenstler - Die Hölle Tanzt.mp3',
-        title: 'Die Hölle Tanzt (Raw Industrial Master)',
-        artist: 'Klangkuenstler',
-        album: 'Outworld Recordings',
-        genre: 'Industrial Techno',
-        bpm: 156,
-        key: 'Fm',
-        duration: '06:12',
-        durationSec: 372,
-        format: 'MP3',
-        fileSize: 14850000,
-        fileSizeFormatted: '14.2 MB',
-        bitrate: '320 kbps',
-        dateAdded: Date.now() - 86400000 * 5,
-        lastScanned: Date.now(),
-        folderCategory: 'Main',
-        playCount: 14
-      },
-      {
-        id: 'lib-02',
-        filePath: 'C:\\Music\\Scout\\I Hate Models - Daydream.flac',
-        fileName: 'I Hate Models - Daydream.flac',
-        title: 'Daydream (Warehouse Acid Edit)',
-        artist: 'I Hate Models',
-        album: 'Arts Collective',
-        genre: 'Dark Techno',
-        bpm: 148,
-        key: 'Am',
-        duration: '07:44',
-        durationSec: 464,
-        format: 'FLAC',
-        fileSize: 52400000,
-        fileSizeFormatted: '49.9 MB',
-        bitrate: 'Lossless 24-bit',
-        dateAdded: Date.now() - 86400000 * 2,
-        lastScanned: Date.now(),
-        folderCategory: 'Scout',
-        playCount: 28
-      },
-      {
-        id: 'lib-03',
-        filePath: 'C:\\Music\\Kobosil - Full Throttle.wav',
-        fileName: 'Kobosil - Full Throttle.wav',
-        title: 'Full Throttle (Neukölln Stomp)',
-        artist: 'Kobosil',
-        album: 'R-Label Group',
-        genre: 'Hard Techno',
-        bpm: 158,
-        key: 'Dm',
-        duration: '05:48',
-        durationSec: 348,
-        format: 'WAV',
-        fileSize: 62900000,
-        fileSizeFormatted: '60.0 MB',
-        bitrate: '1411 kbps',
-        dateAdded: Date.now() - 86400000 * 9,
-        lastScanned: Date.now(),
-        folderCategory: 'Main',
-        playCount: 41
-      },
-      {
-        id: 'lib-04',
-        filePath: 'C:\\Music\\Boy Harsher - Pain.mp3',
-        fileName: 'Boy Harsher - Pain.mp3',
-        title: 'Pain (Industrial Darkwave Mix)',
-        artist: 'Boy Harsher',
-        album: 'Lesser Man EP',
-        genre: 'EBM',
-        bpm: 122,
-        key: 'Gm',
-        duration: '07:08',
-        durationSec: 428,
-        format: 'MP3',
-        fileSize: 17100000,
-        fileSizeFormatted: '16.3 MB',
-        bitrate: '320 kbps',
-        dateAdded: Date.now() - 86400000 * 12,
-        lastScanned: Date.now(),
-        folderCategory: 'Main',
-        playCount: 33
-      },
-      {
-        id: 'lib-05',
-        filePath: 'C:\\Music\\Scout\\Carpenter Brut - Turbo Killer.webm',
-        fileName: 'Carpenter Brut - Turbo Killer.webm',
-        title: 'Turbo Killer (Overdrive Master)',
-        artist: 'Carpenter Brut',
-        album: 'Trilogy',
-        genre: 'Synthwave',
-        bpm: 130,
-        key: 'Em',
-        duration: '04:15',
-        durationSec: 255,
-        format: 'WEBM',
-        fileSize: 11200000,
-        fileSizeFormatted: '10.7 MB',
-        bitrate: '160 kbps Opus',
-        dateAdded: Date.now() - 86400000 * 1,
-        lastScanned: Date.now(),
-        folderCategory: 'Scout',
-        playCount: 19
-      }
-    ];
-    this.save();
   }
 
   save() {
@@ -162,7 +53,6 @@ class LibraryManager {
     try {
       for (const dirObj of directories) {
         if (!fs.existsSync(dirObj.path)) {
-          // If running locally without created folder, continue gracefully
           continue;
         }
 
@@ -174,14 +64,15 @@ class LibraryManager {
           if (!SUPPORTED_EXTENSIONS.includes(ext)) continue;
 
           const fullPath = path.join(dirObj.path, entry.name);
-          if (!existingFilePaths.has(fullPath)) {
-            const stats = fs.statSync(fullPath);
+          if (!existingFilePaths.has(fullPath.toLowerCase())) {
             const rawName = path.basename(entry.name, ext);
             const parts = rawName.split(' - ');
-            const artist = parts.length > 1 ? parts[0].trim() : 'Unknown Artist';
+            const artist = parts.length > 1 ? parts[0].trim() : 'Underground Artist';
             const title = parts.length > 1 ? parts.slice(1).join(' - ').trim() : rawName;
-
             const format = ext.replace('.', '').toUpperCase();
+
+            // Extract genuine audio duration, bitrate, and size
+            const audioMeta = await inspectAudioFile(fullPath);
 
             const newTrack = {
               id: `track-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
@@ -189,16 +80,18 @@ class LibraryManager {
               fileName: entry.name,
               title,
               artist,
-              album: 'Local Import',
-              genre: 'Industrial Techno',
-              bpm: 145,
-              key: 'Am',
-              duration: '05:30',
-              durationSec: 330,
-              format,
-              fileSize: stats.size,
-              fileSizeFormatted: `${(stats.size / (1024 * 1024)).toFixed(1)} MB`,
-              bitrate: '320 kbps',
+              album: dirObj.category === 'Scout' ? 'RAD X Scout' : 'Local Library',
+              genre: null,
+              bpm: null,
+              key: null,
+              duration: audioMeta.duration || null,
+              durationSec: audioMeta.durationSec || null,
+              format: audioMeta.format || format || null,
+              channels: audioMeta.channels || null,
+              codec: audioMeta.codec || null,
+              fileSize: audioMeta.fileSize,
+              fileSizeFormatted: audioMeta.fileSizeFormatted,
+              bitrate: audioMeta.bitrate || null,
               dateAdded: Date.now(),
               lastScanned: Date.now(),
               folderCategory: dirObj.category,
@@ -206,7 +99,7 @@ class LibraryManager {
             };
 
             this.tracks.unshift(newTrack);
-            existingFilePaths.add(fullPath);
+            existingFilePaths.add(fullPath.toLowerCase());
             newFound++;
           }
         }

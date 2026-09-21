@@ -44,7 +44,7 @@ function createWindow() {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.unsplash.com https://i.ytimg.com; connect-src 'self' http://localhost:3000 ws://localhost:3000; media-src 'self' blob: data:;"
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:3000 ws://localhost:3000; media-src 'self' blob: data: file:;"
         ]
       }
     });
@@ -58,7 +58,7 @@ function createWindow() {
   const downloadManager = new DownloadManager(storageManager, settingsManager);
   const libraryManager = new LibraryManager(storageManager, settingsManager);
   const hunterEngine = new HunterEngine(downloadManager, queueManager, libraryManager);
-  const scoutEngine = new ScoutEngine(storageManager, libraryManager, downloadManager);
+  const scoutEngine = new ScoutEngine(storageManager, libraryManager, downloadManager, queueManager);
   const scoutScheduler = new ScoutScheduler(scoutEngine, queueManager, downloadManager, libraryManager, settingsManager);
 
   // Register IPC Handlers

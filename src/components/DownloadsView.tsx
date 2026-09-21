@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Download,
   Pause,
@@ -6,12 +6,17 @@ import {
   XCircle,
   RotateCcw,
   CheckCircle2,
+  AlertTriangle,
   Trash2,
   Clock,
   HardDrive,
   Activity,
   Layers,
-  ListOrdered
+  ListOrdered,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
+  Info
 } from 'lucide-react';
 import { DownloadJob, QueueItem } from '../types';
 
@@ -36,6 +41,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
   onClearFinished,
   onRemoveFromQueue
 }) => {
+  const [expandedDiagnostics, setExpandedDiagnostics] = useState<Record<string, boolean>>({});
+
+  const toggleDiagnostics = (id: string) => {
+    setExpandedDiagnostics(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const activeDownloads = downloadJobs.filter(j => j.status === 'Downloading');
   const queuedDownloads = downloadJobs.filter(j => j.status === 'Queued');
   const finishedDownloads = downloadJobs.filter(j => j.status === 'Finished');
@@ -118,8 +129,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <div className="w-12 h-12 rounded bg-black border border-[#212a3d] overflow-hidden flex-shrink-0">
-                        <img src={job.thumbnail} alt={job.title} className="w-full h-full object-cover" />
+                      <div className="w-12 h-12 rounded bg-black border border-[#212a3d] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {job.thumbnail ? (
+                          <img src={job.thumbnail} alt={job.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <Download className="w-5 h-5 text-zinc-600" />
+                        )}
                       </div>
 
                       <div className="min-w-0">
@@ -203,12 +218,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                       <div className="flex items-center space-x-3">
                         <span className="text-zinc-200 font-bold">{job.progress.percentage}%</span>
                         <span className="text-zinc-600">|</span>
-                        <span>VELOCIDAD: {job.progress.speed}</span>
+                        <span>VELOCIDAD: {job.progress.speed || (isDownloading ? 'Conectando...' : '--')}</span>
                         <span className="text-zinc-600">|</span>
-                        <span>TIEMPO: {job.progress.eta}</span>
+                        <span>TIEMPO: {job.progress.eta || '--'}</span>
                       </div>
                       <span>
-                        {job.progress.sizeFormatted} ({job.quality})
+                        {job.progress.sizeFormatted || (isFinished ? 'Descargado' : '--')} ({job.quality})
                       </span>
                     </div>
 
@@ -219,12 +234,74 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
                             ? 'bg-emerald-500'
                             : isPaused
                             ? 'bg-amber-500'
+                            : job.status === 'Failed'
+                            ? 'bg-rose-500'
                             : 'bg-gradient-to-r from-emerald-500 to-cyan-400'
                         }`}
                         style={{ width: `${job.progress.percentage}%` }}
                       />
                     </div>
                   </div>
+
+                  {/* Real Error and Diagnostics for yt-dlp / ffprobe */}
+                  {job.status === 'Failed' && (
+                    <div className="bg-rose-950/20 border border-rose-900/40 rounded-lg p-2.5 text-xs font-mono space-y-2">
+                      <div className="flex items-center justify-between text-rose-300">
+                        <div className="flex items-center space-x-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                          <span className="font-semibold">Fallo en descarga real de yt-dlp:</span>
+                          <span className="text-rose-200">{job.error || 'Error desconocido'}</span>
+                        </div>
+                        <button
+                          onClick={() => toggleDiagnostics(job.id)}
+                          className="flex items-center space-x-1 text-[10px] text-rose-400 hover:text-rose-200 cursor-pointer"
+                        >
+                          <Terminal className="w-3 h-3" />
+                          <span>{expandedDiagnostics[job.id] ? 'Ocultar diagnóstico' : 'Ver comando & stderr'}</span>
+                          {expandedDiagnostics[job.id] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+                      </div>
+
+                      {expandedDiagnostics[job.id] && (
+                        <div className="mt-2 pt-2 border-t border-rose-900/30 space-y-1.5 text-[10px] text-zinc-300">
+                          {job.executedCommand && (
+                            <div>
+                              <span className="text-zinc-500">COMANDO:</span>{' '}
+                              <span className="text-amber-300 select-all">{job.executedCommand}</span>
+                            </div>
+                          )}
+                          {job.exitCode !== undefined && (
+                            <div>
+                              <span className="text-zinc-500">CÓDIGO DE SALIDA:</span>{' '}
+                              <span className="text-rose-400 font-bold">{job.exitCode}</span>
+                            </div>
+                          )}
+                          {job.fullStderr && (
+                            <div className="mt-1">
+                              <span className="text-zinc-500">STDERR COMPLETO:</span>
+                              <pre className="mt-1 p-2 bg-black/60 rounded border border-rose-950 text-zinc-400 whitespace-pre-wrap max-h-36 overflow-y-auto font-mono text-[9px] select-all">
+                                {job.fullStderr}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Real Verified ffprobe Metadata for Finished Downloads */}
+                  {isFinished && (job.actualDuration || job.actualBitrate || job.actualCodec) && (
+                    <div className="flex items-center space-x-3 text-[10px] font-mono text-zinc-400 bg-[#090c13] px-2.5 py-1.5 rounded border border-[#161c28]">
+                      <span className="text-emerald-400 font-bold flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>VERIFICADO FFPROBE:</span>
+                      </span>
+                      {job.actualDuration && <span>Duración: {job.actualDuration}</span>}
+                      {job.actualBitrate && <span>Bitrate: {job.actualBitrate}</span>}
+                      {job.actualCodec && <span>Códec: {job.actualCodec.toUpperCase()}</span>}
+                      {job.actualChannels && <span>Canales: {job.actualChannels === 2 ? 'Estéreo' : job.actualChannels}</span>}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -254,8 +331,12 @@ export const DownloadsView: React.FC<DownloadsViewProps> = ({
               >
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <span className="text-zinc-500 font-bold w-4">#{idx + 1}</span>
-                  <div className="w-8 h-8 rounded bg-black overflow-hidden flex-shrink-0">
-                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                  <div className="w-8 h-8 rounded bg-black overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-zinc-600" />
+                    )}
                   </div>
                   <div className="truncate">
                     <div className="text-zinc-200 truncate font-medium">{item.title}</div>

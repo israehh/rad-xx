@@ -1,94 +1,20 @@
 /**
- * RAD X Scout Engine
- * Autonomous radar discovery engine, trend analyzer, sonic classifier, and duplicate rejection filter
+ * RAD X Scout Engine - Real Radar Discovery Engine
+ * Autonomous radar discovery engine, trend analyzer, and duplicate rejection filter.
+ * Scans real networks using yt-dlp to identify underground audio releases.
  */
 
+const { searchMedia } = require('../utils/ytdlp.cjs');
+
 class ScoutEngine {
-  constructor(storageManager, libraryManager, downloadManager) {
+  constructor(storageManager, libraryManager, downloadManager, queueManager = null) {
     this.storage = storageManager;
     this.libraryManager = libraryManager;
     this.downloadManager = downloadManager;
+    this.queueManager = queueManager;
     this.STORAGE_KEY = 'scout_results';
     this.results = this.storage.get(this.STORAGE_KEY, []);
     this.isScanning = false;
-
-    if (this.results.length === 0) {
-      this.seedInitialScoutResults();
-    }
-  }
-
-  seedInitialScoutResults() {
-    this.results = [
-      {
-        id: 'sct-01',
-        title: 'Cybernetic Rebar Pulverizer (Club Tool)',
-        artist: 'Hadone & Shlømo',
-        channel: 'Taapion Records',
-        duration: '06:33',
-        genre: 'Industrial Techno',
-        thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_scout_01',
-        bpm: 154,
-        key: 'Fm',
-        trendScore: 96,
-        detectionDate: new Date().toISOString().split('T')[0],
-        classificationNotes: 'Massive transient sub-bass rumble, 909 rimshot syncopation, 96% viral traction across Berlin underground streams.',
-        isDuplicate: false,
-        status: 'new'
-      },
-      {
-        id: 'sct-02',
-        title: 'Darkroom Screamer (162 BPM Overload)',
-        artist: 'Sara Landry',
-        channel: 'HEKATE Records',
-        duration: '05:40',
-        genre: 'Hard Techno',
-        thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_scout_02',
-        bpm: 162,
-        key: 'G#m',
-        trendScore: 92,
-        detectionDate: new Date().toISOString().split('T')[0],
-        classificationNotes: 'High-energy screamer synth, heavy sidechain distortion, dominant track on French rave circuits.',
-        isDuplicate: false,
-        status: 'new'
-      },
-      {
-        id: 'sct-03',
-        title: 'Shadow Realm Transmission (Acid Drone)',
-        artist: 'Cleric & Setaoc Mass',
-        channel: 'Figure Records',
-        duration: '07:15',
-        genre: 'Dark Techno',
-        thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_scout_03',
-        bpm: 140,
-        key: 'Dm',
-        trendScore: 88,
-        detectionDate: new Date().toISOString().split('T')[0],
-        classificationNotes: 'Deep hypnotic modular acid loops, spatial convolution reverb, late-night Berghain aesthetic.',
-        isDuplicate: false,
-        status: 'reviewed'
-      },
-      {
-        id: 'sct-04',
-        title: 'Industrial Flesh Sequence (1988 Tape Remaster)',
-        artist: 'Schwefelgelb',
-        channel: 'Fleisch Berlin',
-        duration: '05:12',
-        genre: 'EBM',
-        thumbnail: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_scout_04',
-        bpm: 125,
-        key: 'Em',
-        trendScore: 84,
-        detectionDate: new Date().toISOString().split('T')[0],
-        classificationNotes: 'Metallic sequencer bass, sharp punchy vocal chops, darkwave/EBM crossover trending in gothic electro scenes.',
-        isDuplicate: false,
-        status: 'new'
-      }
-    ];
-    this.save();
   }
 
   save() {
@@ -99,69 +25,81 @@ class ScoutEngine {
     return [...this.results];
   }
 
-  async runDailyRadarScan() {
+  /**
+   * Run real radar scan against live sources
+   */
+  async runDailyRadarScan(genres = ['Industrial Techno', 'Hard Techno'], autoQueue = true) {
     if (this.isScanning) {
       return { success: false, message: 'Radar scan currently active' };
     }
 
     this.isScanning = true;
+    console.log('[SCOUT] [REAL] Initiating live network radar scan across genres:', genres);
 
-    // Simulate scanning network sources
-    await new Promise(r => setTimeout(r, 1200));
+    try {
+      const libraryTracks = this.libraryManager ? this.libraryManager.getAll() : [];
+      const queueTracks = this.queueManager ? this.queueManager.getAll() : [];
+      const downloadJobs = this.downloadManager ? this.downloadManager.getAll() : [];
 
-    const libraryTracks = this.libraryManager.getAll();
-    const existingTitles = new Set(libraryTracks.map(t => t.title.toLowerCase()));
+      const existingTitles = new Set([
+        ...libraryTracks.map(t => (t.title || '').toLowerCase().trim()),
+        ...queueTracks.map(q => (q.title || '').toLowerCase().trim()),
+        ...downloadJobs.map(d => (d.title || '').toLowerCase().trim())
+      ]);
+      const scoutTitles = new Set(this.results.map(r => (r.title || '').toLowerCase().trim()));
 
-    // Example newly scouted underground track
-    const sampleNewDiscoveries = [
-      {
-        title: 'Void Walker (155 BPM Industrial Terror)',
-        artist: 'Kobos x Wallis',
-        channel: 'R-Label Group',
-        duration: '06:22',
-        genre: 'Industrial Techno',
-        thumbnail: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_radar_01',
-        bpm: 155,
-        key: 'Am',
-        trendScore: 98,
-        classificationNotes: 'Severe sub-kick saturation, rhythmic metallic clang, discovered on Rotterdam pirate streaming nodes.'
-      },
-      {
-        title: 'Neon Bloodline (Overdrive Synth Mix)',
-        artist: 'Dance with the Dead',
-        channel: 'Retrowave Cyber Hub',
-        duration: '04:48',
-        genre: 'Synthwave',
-        thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
-        sourceUrl: 'https://youtube.com/watch?v=mock_radar_02',
-        bpm: 134,
-        key: 'Dm',
-        trendScore: 89,
-        classificationNotes: 'Heavy distorted guitar lead backed by 80s analog chorus, high velocity track.'
+      let addedCount = 0;
+      let queuedCount = 0;
+
+      for (const genre of genres.slice(0, 3)) {
+        const query = `${genre} underground club master`;
+        const liveTracks = await searchMedia({ query, genre, limit: 6 });
+
+        for (const track of liveTracks) {
+          const normTitle = (track.title || '').toLowerCase().trim();
+          const isDup = existingTitles.has(normTitle) || scoutTitles.has(normTitle);
+
+          const newItem = {
+            id: `scout-${track.id || Date.now()}`,
+            ...track,
+            trendScore: null,
+            detectionDate: new Date().toISOString().split('T')[0],
+            classificationNotes: track.source ? `Discovered via ${track.source} audio network.` : null,
+            isDuplicate: isDup,
+            status: isDup ? 'archived' : 'new'
+          };
+
+          this.results.unshift(newItem);
+          scoutTitles.add(normTitle);
+          addedCount++;
+
+          // Send valid non-duplicate discoveries to queue
+          if (!isDup && autoQueue && this.queueManager) {
+            this.queueManager.add(track, 'MP3');
+            existingTitles.add(normTitle);
+            queuedCount++;
+          }
+        }
       }
-    ];
 
-    let addedCount = 0;
-    for (const disc of sampleNewDiscoveries) {
-      const isDup = existingTitles.has(disc.title.toLowerCase()) ||
-        this.results.some(r => r.title.toLowerCase() === disc.title.toLowerCase());
+      // Limit results history to 200 entries
+      if (this.results.length > 200) {
+        this.results = this.results.slice(0, 200);
+      }
 
-      const newItem = {
-        id: `sct-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-        ...disc,
-        detectionDate: new Date().toISOString().split('T')[0],
-        isDuplicate: isDup,
-        status: isDup ? 'archived' : 'new'
+      this.save();
+      return {
+        success: true,
+        newDiscoveriesCount: addedCount,
+        queuedCount,
+        totalScoutCount: this.results.length
       };
-
-      this.results.unshift(newItem);
-      addedCount++;
+    } catch (err) {
+      console.error('[SCOUT] Radar scan error:', err);
+      return { success: false, error: err.message };
+    } finally {
+      this.isScanning = false;
     }
-
-    this.save();
-    this.isScanning = false;
-    return { success: true, newDiscoveriesCount: addedCount, totalScoutCount: this.results.length };
   }
 
   updateItemStatus(id, newStatus) {

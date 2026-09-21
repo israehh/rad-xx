@@ -145,12 +145,16 @@ export const HunterView: React.FC<HunterViewProps> = ({
                 }`}
               >
                 {/* Visual Thumbnail & Duration */}
-                <div className="relative aspect-video rounded-lg bg-[#07090e] overflow-hidden mb-3 border border-[#1e2436]">
-                  <img
-                    src={track.thumbnail}
-                    alt={track.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                <div className="relative aspect-video rounded-lg bg-[#07090e] overflow-hidden mb-3 border border-[#1e2436] flex items-center justify-center">
+                  {track.thumbnail ? (
+                    <img
+                      src={track.thumbnail}
+                      alt={track.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <Radio className="w-10 h-10 text-zinc-700" />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                   {/* Play Overlay Button */}
@@ -180,13 +184,15 @@ export const HunterView: React.FC<HunterViewProps> = ({
                   </div>
 
                   {/* Duration & Views Bottom Badges */}
-                  <div className="absolute bottom-2 right-2 flex items-center space-x-2 text-[10px] font-mono bg-black/80 px-2 py-0.5 rounded border border-white/10 text-zinc-300">
-                    <span>{track.duration}</span>
-                  </div>
+                  {track.duration && (
+                    <div className="absolute bottom-2 right-2 flex items-center space-x-2 text-[10px] font-mono bg-black/80 px-2 py-0.5 rounded border border-white/10 text-zinc-300">
+                      <span>{track.duration}</span>
+                    </div>
+                  )}
 
                   {track.bpm && (
                     <div className="absolute bottom-2 left-2 text-[10px] font-mono bg-black/80 px-2 py-0.5 rounded border border-amber-500/30 text-amber-400">
-                      {track.bpm} BPM // {track.key || '4A'}
+                      {track.bpm} BPM{track.key ? ` // ${track.key}` : ''}
                     </div>
                   )}
                 </div>
@@ -197,8 +203,8 @@ export const HunterView: React.FC<HunterViewProps> = ({
                     {track.title}
                   </h3>
                   <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
-                    <span className="truncate">{track.artist}</span>
-                    <span className="text-[10px] text-zinc-500 flex-shrink-0">{track.channel}</span>
+                    <span className="truncate">{track.artist || 'Desconocido'}</span>
+                    <span className="text-[10px] text-zinc-500 flex-shrink-0">{track.channel || ''}</span>
                   </div>
                 </div>
 

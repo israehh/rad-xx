@@ -19,22 +19,22 @@ export type DownloadStatus = 'Queued' | 'Downloading' | 'Finished' | 'Failed' | 
 
 export interface DownloadProgress {
   percentage: number;
-  speed: string; // e.g., "3.4 MB/s"
+  speed: string | null; // e.g., "3.4 MB/s" or null
   speedBytesPerSec: number;
-  eta: string; // e.g., "00:45"
+  eta: string | null; // e.g., "00:45" or null
   downloadedBytes: number;
-  totalBytes: number;
-  sizeFormatted: string; // e.g., "48.2 MB"
+  totalBytes: number | null;
+  sizeFormatted: string | null; // e.g., "48.2 MB" or null
 }
 
 export interface DownloadJob {
   id: string;
   trackId: string;
   title: string;
-  artist: string;
-  channel: string;
-  thumbnail: string;
-  genre: Genre;
+  artist: string | null;
+  channel: string | null;
+  thumbnail: string | null;
+  genre: Genre | string | null;
   format: DownloadFormat;
   quality: '320kbps' | 'Lossless' | 'Standard';
   targetPath: string;
@@ -45,17 +45,26 @@ export interface DownloadJob {
   finishedAt?: number;
   error?: string;
   sourceUrl: string;
+  executedCommand?: string;
+  exitCode?: number;
+  fullStderr?: string;
+  actualDuration?: string | null;
+  actualDurationSec?: number | null;
+  actualBitrate?: string | null;
+  actualChannels?: number | null;
+  actualFormat?: string | null;
+  actualCodec?: string | null;
 }
 
 export interface QueueItem {
   id: string;
   trackId: string;
   title: string;
-  artist: string;
-  channel: string;
-  duration: string;
-  genre: Genre;
-  thumbnail: string;
+  artist: string | null;
+  channel: string | null;
+  duration: string | null;
+  genre: Genre | string | null;
+  thumbnail: string | null;
   format: DownloadFormat;
   addedAt: number;
   priority: number;
@@ -64,38 +73,38 @@ export interface QueueItem {
 export interface Track {
   id: string;
   title: string;
-  artist: string;
-  channel: string;
-  duration: string;
-  durationSec: number;
-  genre: Genre;
-  thumbnail: string;
+  artist?: string | null;
+  channel?: string | null;
+  duration?: string | null;
+  durationSec?: number | null;
+  genre?: Genre | string | null;
+  thumbnail?: string | null;
   sourceUrl: string;
-  bpm?: number;
-  key?: string;
-  publishedDate?: string;
-  views?: string;
-  audioPreviewUrl?: string;
+  bpm?: number | null;
+  key?: string | null;
+  publishedDate?: string | null;
+  views?: string | null;
+  audioPreviewUrl?: string | null;
   isDownloaded?: boolean;
   isQueued?: boolean;
-  synopsis?: string;
+  synopsis?: string | null;
   tags?: string[];
 }
 
 export interface ScoutResult {
   id: string;
   title: string;
-  artist: string;
-  channel: string;
-  duration: string;
-  genre: Genre;
-  thumbnail: string;
+  artist?: string | null;
+  channel?: string | null;
+  duration?: string | null;
+  genre?: Genre | string | null;
+  thumbnail?: string | null;
   sourceUrl: string;
-  bpm?: number;
-  key?: string;
-  trendScore: number; // 1 to 100
+  bpm?: number | null;
+  key?: string | null;
+  trendScore?: number | null; // Real metric or null
   detectionDate: string;
-  classificationNotes: string;
+  classificationNotes?: string | null;
   isDuplicate: boolean;
   status: 'new' | 'reviewed' | 'queued' | 'archived';
 }
@@ -105,18 +114,20 @@ export interface LibraryEntry {
   filePath: string;
   fileName: string;
   title: string;
-  artist: string;
-  album?: string;
-  genre: Genre | string;
-  thumbnail?: string;
-  bpm?: number;
-  key?: string;
-  duration: string;
-  durationSec: number;
-  format: DownloadFormat;
+  artist?: string | null;
+  album?: string | null;
+  genre?: Genre | string | null;
+  thumbnail?: string | null;
+  bpm?: number | null;
+  key?: string | null;
+  duration?: string | null;
+  durationSec?: number | null;
+  format?: DownloadFormat | string | null;
+  channels?: number | null;
+  codec?: string | null;
   fileSize: number;
   fileSizeFormatted: string;
-  bitrate?: string;
+  bitrate?: string | null;
   dateAdded: number;
   lastScanned: number;
   folderCategory: 'Main' | 'Scout' | 'Custom';
